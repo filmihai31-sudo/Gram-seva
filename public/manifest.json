@@ -2,19 +2,93 @@
   "id": "/",
   "name": "ग्राम सेवा - Gram Seva",
   "short_name": "Gram Seva",
-  "description": "स्थानीय दुकान और मिस्त्री खोजने के लिए ऐप",
+  "description": "स्थानीय दुकान और मिस्त्री खोजने के लिए ग्रामीण डायरेक्टरी ऐप",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "portrait",
   "background_color": "#16a34a",
   "theme_color": "#16a34a",
+  "lang": "hi",
+  "dir": "ltr",
+  "categories": [
+    "business",
+    "shopping",
+    "utilities",
+    "productivity"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/pwa-192x192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Gram Seva Mobile App"
+    },
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Gram Seva Desktop Dashboard"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "दुकान / मिस्त्री खोजें",
+      "short_name": "खोजें",
+      "description": "स्थानीय मिस्त्री या दुकान तुरंत खोजें",
+      "url": "/?action=search",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "+ अपना काम जोड़ें",
+      "short_name": "दुकान जोड़ें",
+      "description": "अपनी दुकान या सेवा लिस्ट करें",
+      "url": "/?action=add",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
-
