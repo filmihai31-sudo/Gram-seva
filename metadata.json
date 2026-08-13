@@ -1,0 +1,6 @@
+{
+  "name": "Gram Seva",
+  "description": "Ultra-simple local service directory web app for low-literacy users in India with dynamic location search, visual category selection, and interactive shop map navigation.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
