@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#095523"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Maskable Rounded Background -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+
+  <!-- Outer Decorative Ring -->
+  <circle cx="256" cy="256" r="215" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-dasharray="16 8" opacity="0.8"/>
+  <circle cx="256" cy="256" r="195" fill="none" stroke="#ffffff" stroke-width="4" opacity="0.3"/>
+
+  <!-- Central Gear Emblem -->
+  <g filter="url(#shadow)" transform="translate(256, 220)">
+    <!-- Gear teeth -->
+    <path d="M-20,-110 L20,-110 L25,-85 L45,-75 L68,-92 L96,-64 L79,-41 L89,-21 L114,-16 L114,24 L89,29 L79,49 L96,72 L68,100 L45,83 L25,93 L20,118 L-20,118 L-25,93 L-45,83 L-68,100 L-96,72 L-79,49 L-89,29 L-114,24 L-114,-16 L-89,-21 L-79,-41 L-96,-64 L-68,-92 L-45,-75 L-25,-85 Z" fill="url(#goldGrad)" opacity="0.25"/>
+  </g>
+
+  <!-- Tractor Silhouette Icon -->
+  <g filter="url(#shadow)" transform="translate(256, 240)">
+    <!-- Cabin Body -->
+    <path d="M-70,-60 L0,-60 L20,-20 L80,-20 L80,20 L-70,20 Z" fill="#ffffff"/>
+    <!-- Roof Hood -->
+    <path d="M-80,-65 L10,-65 L5,-90 L-80,-90 Z" fill="#ffffff"/>
+    <rect x="-70" y="-85" width="60" height="20" rx="4" fill="url(#goldGrad)"/>
+    <!-- Exhaust Pipe -->
+    <rect x="50" y="-60" width="8" height="40" rx="2" fill="#ffffff"/>
+    <path d="M46,-65 L62,-65 L58,-60 L50,-60 Z" fill="#ffffff"/>
+    
+    <!-- Big Rear Wheel -->
+    <circle cx="-40" cy="25" r="48" fill="#0f172a" stroke="url(#goldGrad)" stroke-width="10"/>
+    <circle cx="-40" cy="25" r="22" fill="#ffffff"/>
+    <circle cx="-40" cy="25" r="10" fill="#0f172a"/>
+    <!-- Treads on Rear Wheel -->
+    <path d="M-40,-23 L-40,73 M-88,25 L8,25 M-74,-9 L-6,59 M-6,-9 L-74,59" stroke="url(#goldGrad)" stroke-width="5" opacity="0.6"/>
+
+    <!-- Small Front Wheel -->
+    <circle cx="55" cy="35" r="28" fill="#0f172a" stroke="url(#goldGrad)" stroke-width="6"/>
+    <circle cx="55" cy="35" r="12" fill="#ffffff"/>
+    <circle cx="55" cy="35" r="5" fill="#0f172a"/>
+  </g>
+
+  <!-- Banner Ribbon with Text "ग्राम सेवा" -->
+  <g filter="url(#shadow)" transform="translate(256, 420)">
+    <rect x="-160" y="-32" width="320" height="64" rx="32" fill="url(#goldGrad)"/>
+    <rect x="-154" y="-26" width="308" height="52" rx="26" fill="#0f172a"/>
+    <text x="0" y="8" font-family="'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="30" fill="#fbbf24" text-anchor="middle" letter-spacing="2">ग्राम सेवा</text>
+  </g>
+</svg>
