@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Zap,
   Hammer,
@@ -126,71 +126,8 @@ import {
   getDistrictsForState,
   getVillagesForDistrict
 } from './data/indiaLocations';
-
-// --- Types ---
-export interface WorkerService {
-  id: string;
-  name: string; // Owner Name
-  shopName?: string; // Shop / Business Name
-  hindiName: string;
-  category: string;
-  customCategory?: string;
-  phone: string;
-  whatsapp: string;
-  village: string;
-  district: string;
-  state: string;
-  rating: number;
-  jobsDone: number;
-  experienceYears: number;
-  isVerified: boolean;
-  verificationStatus?: 'approved' | 'pending' | 'rejected';
-  idNumber?: string; // Govt ID / Aadhaar ID Number
-  documentPhotoUrl?: string; // Shop Board / ID photo
-  avatarUrl: string;
-  charges: string;
-  skills: string[];
-  mapAddress: string;
-  lat?: number;
-  lng?: number;
-  reviewsCount?: number;
-  userTags?: string[];
-  submittedAt?: number;
-  password?: string;
-  securityQuestion?: string;
-  securityAnswer?: string;
-}
-
-interface NativeAdItem {
-  id: string;
-  title: string;
-  hindiTitle: string;
-  description: string;
-  badgeText: string;
-  categoryTag: string;
-  sponsorName: string;
-  iconEmoji: string;
-  ctaText: string;
-  ctaSub: string;
-  ctaUrl: string;
-  bgColor: string;
-  borderColor: string;
-}
-
-// --- FEATURE: Paid Banner Ad Request Interface & Pricing Matrix ---
-interface BannerAdRequest {
-  id: string;
-  businessName: string;
-  mobile: string;
-  imageUrl: string;
-  durationDays: number; // 1, 2, 3, or 5
-  price: number; // 99, 150, 230, 349
-  utrNumber: string;
-  status: 'pending' | 'approved' | 'rejected';
-  submittedAt: number;
-  approvedAt?: number;
-  expiryTime?: number;
-}
+import { WorkerService, NativeAdItem, BannerAdRequest } from './types';
+export type { WorkerService, NativeAdItem, BannerAdRequest };
 
 const AD_PRICING_PLANS = [
   { days: 1, price: 99, label: '1 दिन (1 Day)', badge: 'बेसिक प्लान', color: 'border-amber-400 bg-amber-50 text-amber-950 shadow-xs' },
@@ -1398,7 +1335,9 @@ export default function App() {
   // Dropdown search query filters
   const [stateSearch, setStateSearch] = useState<string>('');
   const [districtSearch, setDistrictSearch] = useState<string>('');
-  const [villageSearch, setVillageSearch] = useState<string>('');
+  const [villageSearch, setVillageSearch] = useState<string>(() => {
+    return localStorage.getItem('gramseva_village') || 'Kalchina (कलछीना)';
+  });
 
   // Dropdown flags
   const [isStateOpen, setIsStateOpen] = useState<boolean>(false);
@@ -1612,6 +1551,31 @@ export default function App() {
   const [userGpsLng, setUserGpsLng] = useState<number>(77.4215);
   const [isDetectingGps, setIsDetectingGps] = useState<boolean>(false);
   const [nearbyRadiusKm, setNearbyRadiusKm] = useState<number>(25);
+  const [isListening, setIsListening] = useState<boolean>(false);
+
+  // Dropdown & Combobox Refs for outside click handling
+  const stateDropdownRef = useRef<HTMLDivElement>(null);
+  const districtDropdownRef = useRef<HTMLDivElement>(null);
+  const villageComboboxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (villageComboboxRef.current && !villageComboboxRef.current.contains(target)) {
+        setIsVillageOpen(false);
+      }
+      if (stateDropdownRef.current && !stateDropdownRef.current.contains(target)) {
+        setIsStateOpen(false);
+      }
+      if (districtDropdownRef.current && !districtDropdownRef.current.contains(target)) {
+        setIsDistrictOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleGetCustomerLocation = () => {
     if (!navigator.geolocation) {
@@ -1840,8 +1804,6 @@ export default function App() {
   };
 
   // --- WEB SPEECH API: CATEGORY VOICE SEARCH FOR RURAL USERS ---
-  const [isListening, setIsListening] = useState<boolean>(false);
-
   const handleVoiceSearch = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -2574,7 +2536,12 @@ export default function App() {
   const filteredVillages = useMemo(() => {
     if (!villageSearch.trim()) return currentVillages;
     const q = villageSearch.toLowerCase().trim();
-    return currentVillages.filter((v) => v.toLowerCase().includes(q));
+    return currentVillages.filter((v) => {
+      const vLower = v.toLowerCase();
+      const cleanV = vLower.replace(/[\(\)\/\-_,]/g, ' ');
+      const cleanQ = q.replace(/[\(\)\/\-_,]/g, ' ');
+      return vLower.includes(q) || cleanV.includes(cleanQ) || v.includes(villageSearch.trim());
+    });
   }, [currentVillages, villageSearch]);
 
   const addShopDistricts = useMemo(() => {
@@ -2598,6 +2565,12 @@ export default function App() {
   }, [addShopState, addShopDistrict, currentVillages, approvedMasterLocations]);
 
   const activeVillageDisplay = isManualVillage ? (manualVillageName.trim() || 'आपका गाँव (Your Village)') : selectedVillage;
+
+  const isLocationValid = Boolean(
+    selectedState &&
+    selectedDistrict &&
+    (isManualVillage ? manualVillageName.trim().length > 0 : selectedVillage && selectedVillage.trim().length > 0)
+  );
 
   // WORKERS PROXIMITY SORTING ENGINE
   const sortedWorkersWithDistance = useMemo(() => {
@@ -3142,7 +3115,7 @@ export default function App() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               
               {/* STATE DROPDOWN */}
-              <div className="relative">
+              <div className="relative" ref={stateDropdownRef}>
                 <label className="block text-xs font-black text-slate-700 mb-1">राज्य (State)</label>
                 <button
                   type="button"
@@ -3179,6 +3152,10 @@ export default function App() {
                             const vills = getVillagesForDistrict(st, dists[0]);
                             if (vills && vills.length > 0) {
                               setSelectedVillage(vills[0]);
+                              setVillageSearch(vills[0]);
+                            } else {
+                              setSelectedVillage('');
+                              setVillageSearch('');
                             }
                           }
                         }}
@@ -3194,7 +3171,7 @@ export default function App() {
               </div>
 
               {/* DISTRICT DROPDOWN */}
-              <div className="relative">
+              <div className="relative" ref={districtDropdownRef}>
                 <label className="block text-xs font-black text-slate-700 mb-1">जिला (District)</label>
                 <button
                   type="button"
@@ -3228,6 +3205,10 @@ export default function App() {
                           const vills = getVillagesForDistrict(selectedState, d);
                           if (vills && vills.length > 0) {
                             setSelectedVillage(vills[0]);
+                            setVillageSearch(vills[0]);
+                          } else {
+                            setSelectedVillage('');
+                            setVillageSearch('');
                           }
                         }}
                         className={`w-full text-left px-3 py-2 text-xs font-bold rounded-xl transition-colors ${
@@ -3241,90 +3222,182 @@ export default function App() {
                 )}
               </div>
 
-              {/* VILLAGE SELECTOR OR MANUAL INPUT */}
-              <div className="relative">
-                <label className="block text-xs font-black text-slate-700 mb-1">
-                  गाँव / कस्बा (Village)
-                </label>
+              {/* VILLAGE AUTO-SUGGEST COMBOBOX OR MANUAL INPUT */}
+              <div className="relative" ref={villageComboboxRef}>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-black text-slate-700">
+                    गाँव / कस्बा (Village / Town)
+                  </label>
+                  {!isManualVillage && selectedDistrict && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200">
+                      {currentVillages.length} गाँव उपलब्ध
+                    </span>
+                  )}
+                </div>
 
                 {!isManualVillage ? (
-                  <>
+                  <div className="relative">
+                    {/* Auto-suggest Search Input Field */}
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        value={villageSearch}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setVillageSearch(val);
+                          setIsVillageOpen(true);
+                          // Exact match check
+                          const exactMatch = currentVillages.find(
+                            (v) => v.toLowerCase() === val.toLowerCase() || v.split('(')[0].trim().toLowerCase() === val.toLowerCase()
+                          );
+                          if (exactMatch) {
+                            setSelectedVillage(exactMatch);
+                          } else if (!val.trim()) {
+                            setSelectedVillage('');
+                          }
+                        }}
+                        onFocus={() => {
+                          setIsVillageOpen(true);
+                          setIsStateOpen(false);
+                          setIsDistrictOpen(false);
+                        }}
+                        placeholder="गाँव या कस्बा खोजें (उदा: Nahal, Jahangirpuri, Kalchina)..."
+                        className="w-full py-2.5 pl-3 pr-16 bg-emerald-50 border-2 border-emerald-400 rounded-2xl text-xs font-black text-emerald-950 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:border-emerald-600 focus:bg-white focus:ring-2 focus:ring-emerald-300 shadow-2xs transition-all"
+                      />
+
+                      {/* Clear & Dropdown Actions */}
+                      <div className="absolute right-2 flex items-center gap-1">
+                        {villageSearch.trim().length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVillageSearch('');
+                              setSelectedVillage('');
+                              setIsVillageOpen(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-full transition-colors cursor-pointer"
+                            title="साफ करें (Clear)"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsVillageOpen(!isVillageOpen);
+                            setIsStateOpen(false);
+                            setIsDistrictOpen(false);
+                          }}
+                          className="p-1 text-emerald-700 hover:bg-emerald-200/50 rounded-lg transition-colors cursor-pointer"
+                          title="गाँव की लिस्ट देखें"
+                        >
+                          <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isVillageOpen ? 'rotate-180 text-emerald-900' : ''}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Auto-Suggest Dropdown Suggestions Box */}
+                    {isVillageOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border-2 border-emerald-500 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                        {/* Header Info */}
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100 text-[11px] font-bold text-emerald-900">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>{selectedDistrict} के गाँव / कस्बे</span>
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            {filteredVillages.length} मिले
+                          </span>
+                        </div>
+
+                        {/* Scrollable Suggestions List */}
+                        <div className="max-h-60 overflow-y-auto p-1.5 divide-y divide-slate-100">
+                          {filteredVillages.length === 0 ? (
+                            <div className="p-4 text-center">
+                              <p className="text-xs font-bold text-slate-700 mb-1">
+                                "{villageSearch}" इस जिले में नहीं मिला
+                              </p>
+                              <p className="text-[11px] text-slate-500 mb-3">
+                                क्या आपका गाँव लिस्ट में नहीं है?
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsManualVillage(true);
+                                  setManualVillageName(villageSearch);
+                                  setIsVillageOpen(false);
+                                }}
+                                className="px-3.5 py-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs rounded-xl shadow-sm transition-all cursor-pointer"
+                              >
+                                ➕ खुद टाइप करें (Type Manually)
+                              </button>
+                            </div>
+                          ) : (
+                            filteredVillages.map((v) => {
+                              const isSelected = selectedVillage === v;
+                              return (
+                                <button
+                                  key={v}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedVillage(v);
+                                    setVillageSearch(v);
+                                    setIsVillageOpen(false);
+                                    speakText(`गाँव ${v} चुना गया।`);
+                                  }}
+                                  className={`w-full text-left px-3 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-100 text-emerald-950 font-black border border-emerald-300 shadow-2xs'
+                                      : 'hover:bg-emerald-50 text-slate-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 truncate">
+                                    <MapPin className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-emerald-700' : 'text-slate-400'}`} />
+                                    <span className="truncate">{v}</span>
+                                  </div>
+                                  {isSelected ? (
+                                    <span className="flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded-md shrink-0 font-black">
+                                      <Check className="w-3.5 h-3.5 stroke-[3]" /> चुना हुआ
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-semibold shrink-0">
+                                      चुनें
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Manual Entry Fallback */
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="गाँव या कस्बे का नाम लिखें (उदा: नया गाँव)..."
+                        value={manualVillageName}
+                        onChange={(e) => setManualVillageName(e.target.value)}
+                        className="w-full p-2.5 pl-3 bg-amber-50 border-2 border-amber-400 rounded-2xl text-xs font-black text-slate-900 placeholder:text-amber-700/60 focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-300 shadow-2xs"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
-                        setIsVillageOpen(!isVillageOpen);
-                        setIsStateOpen(false);
-                        setIsDistrictOpen(false);
+                        setIsManualVillage(false);
+                        if (currentVillages.length > 0 && !selectedVillage) {
+                          setSelectedVillage(currentVillages[0]);
+                          setVillageSearch(currentVillages[0]);
+                        }
                       }}
-                      className="w-full p-2.5 bg-emerald-50 border-2 border-emerald-400 rounded-2xl text-xs font-black text-emerald-950 flex items-center justify-between hover:border-emerald-600 shadow-2xs"
-                    >
-                      <span className="truncate">{selectedVillage}</span>
-                      <ChevronDown className="w-4 h-4 text-emerald-700 shrink-0" />
-                    </button>
-
-                    {isVillageOpen && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border-2 border-slate-300 rounded-2xl shadow-2xl z-50 p-2 max-h-60 overflow-y-auto">
-                        <input
-                          type="text"
-                          placeholder="गाँव खोजें (उदा: Kalchina / कलछीना)..."
-                          value={villageSearch}
-                          onChange={(e) => setVillageSearch(e.target.value)}
-                          className="w-full p-2 bg-slate-100 border border-slate-300 rounded-xl text-xs font-bold mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                        {filteredVillages.length === 0 ? (
-                          <div className="p-3 text-center">
-                            <p className="text-xs text-slate-500 mb-2">गाँव लिस्ट में नहीं मिला?</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsManualVillage(true);
-                                setIsVillageOpen(false);
-                              }}
-                              className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-2xs"
-                            >
-                              खुद टाइप करें (Type Manually)
-                            </button>
-                          </div>
-                        ) : (
-                          filteredVillages.map((v) => (
-                            <button
-                              key={v}
-                              type="button"
-                              onClick={() => {
-                                setSelectedVillage(v);
-                                setIsVillageOpen(false);
-                                setVillageSearch('');
-                                setCurrentStep(1);
-                                speakText(`गाँव ${v} चुना गया। अब सेवा चुनें।`);
-                              }}
-                              className={`w-full text-left px-3 py-2 text-xs font-bold rounded-xl transition-colors flex items-center justify-between ${
-                                selectedVillage === v ? 'bg-emerald-100 text-emerald-950 font-black' : 'hover:bg-slate-100'
-                              }`}
-                            >
-                              <span>{v}</span>
-                              {selectedVillage === v && <Check className="w-4 h-4 text-emerald-700" />}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      placeholder="गाँव का नाम लिखें..."
-                      value={manualVillageName}
-                      onChange={(e) => setManualVillageName(e.target.value)}
-                      className="w-full p-2.5 bg-amber-50 border-2 border-amber-400 rounded-2xl text-xs font-bold text-slate-900 focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setIsManualVillage(false)}
-                      className="p-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-300"
-                      title="लिस्ट से चुनें"
+                      className="p-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl text-xs font-black transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                      title="ऑटो-सर्च लिस्ट पर वापस जाएं"
                     >
                       <X className="w-4 h-4" />
+                      <span className="hidden sm:inline">लिस्ट</span>
                     </button>
                   </div>
                 )}
@@ -3348,36 +3421,59 @@ export default function App() {
               </span>
             </div>
 
-            {/* NEARBY MAP EXPLORER BUTTON */}
-            <div className="pt-2 border-t border-slate-100">
+            {/* 1. PRIMARY NEXT ACTION BUTTON (POSITIONED IMMEDIATELY AFTER VILLAGE SELECTION) */}
+            <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={!isLocationValid}
+                onClick={() => {
+                  if (!isLocationValid) return;
+                  setCurrentStep(1);
+                  speakText(`स्थान चुना गया: ${activeVillageDisplay}, ${selectedDistrict}। अब अपनी पसंदीदा सेवा या काम चुनें।`);
+                }}
+                className={`w-full py-3.5 px-4 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 ${
+                  isLocationValid
+                    ? 'bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-900 hover:from-emerald-800 hover:to-teal-950 text-white border-2 border-emerald-600 cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 border-2 border-slate-300 cursor-not-allowed opacity-75'
+                }`}
+              >
+                <span>आगे बढ़ें: काम / सेवा चुनें (Next: Choose Service)</span>
+                <ArrowRight className={`w-5 h-5 stroke-[2.5] ${isLocationValid ? 'text-amber-300' : 'text-slate-400'}`} />
+              </button>
+
+              {/* 2. MAP ACTION: RENAME EXACTLY TO 'मेरे आसपास की दुकान दिखाएं' */}
               <button
                 type="button"
                 onClick={handleGetCustomerLocation}
                 disabled={isDetectingGps}
-                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 hover:from-emerald-700 hover:to-teal-900 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md border border-emerald-800 flex items-center justify-center gap-2 active:scale-98 transition-all"
+                className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-800 hover:from-emerald-700 hover:to-teal-900 text-white font-black text-xs sm:text-sm rounded-2xl shadow-sm border border-emerald-800 flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer"
               >
                 <MapPin className="w-4 h-4 text-amber-300 animate-bounce shrink-0" />
                 <span>
                   {isDetectingGps
                     ? '📍 GPS लोकेशन खोजी जा रही है...'
-                    : '🗺️ नक्शे / मैप पर मेरे पास की सभी दुकानें देखें (Explore Nearby Shops on Map)'}
+                    : 'मेरे आसपास की दुकान दिखाएं'}
                 </span>
               </button>
-            </div>
 
-            {/* PRIMARY NEXT ACTION BUTTON */}
-            <div className="pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setCurrentStep(1);
-                  speakText(`स्थान चुना गया: ${activeVillageDisplay}, ${selectedDistrict}। अब अपनी पसंदीदा सेवा या काम चुनें।`);
-                }}
-                className="w-full py-3.5 bg-gradient-to-r from-emerald-700 via-emerald-800 to-teal-900 hover:from-emerald-800 hover:to-teal-950 text-white font-black text-sm sm:text-base rounded-2xl shadow-lg border-2 border-emerald-600 flex items-center justify-center gap-2 active:scale-98 transition-all"
-              >
-                <span>आगे बढ़ें: काम / सेवा चुनें (Next: Choose Service)</span>
-                <ArrowRight className="w-5 h-5 stroke-[2.5] text-amber-300" />
-              </button>
+              {/* 3. LANDING PAGE EXCLUSIVE: ADD BUSINESS CTA */}
+              <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border-2 border-amber-300 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-2xs text-left mt-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 bg-amber-200/80 text-amber-950 rounded-xl text-xl shrink-0">🏪</span>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-900">क्या आप कारीगर, मिस्त्री या दुकानदार हैं?</h3>
+                    <p className="text-[11px] text-slate-600 font-medium">अपने गाँव और आसपास के ग्राहकों तक पहुँचने के लिए अपनी दुकान ग्राम सेवा पर मुफ़्त जोड़ें।</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddWorkerOpen(true)}
+                  className="w-full sm:w-auto px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-500 shrink-0 whitespace-nowrap active:scale-95 transition-transform flex items-center justify-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>+ अपना काम / दुकान जोड़ें</span>
+                </button>
+              </div>
             </div>
 
           </section>
@@ -3558,30 +3654,25 @@ export default function App() {
                 })}
               </div>
             ) : (
-              /* ZERO RESULTS FALLBACK CARD */
-              <div className="p-6 bg-amber-50 rounded-3xl border-2 border-amber-300 text-center flex flex-col items-center justify-center gap-3 mt-2 shadow-2xs">
-                <div className="w-12 h-12 bg-amber-100 text-amber-900 rounded-full flex items-center justify-center text-2xl font-black shadow-inner">
+              /* ZERO RESULTS FALLBACK CARD (CLEAN: ONLY RESET / NAVIGATION) */
+              <div className="p-6 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-300 text-center flex flex-col items-center justify-center gap-3 mt-2 shadow-2xs">
+                <div className="w-12 h-12 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center text-2xl font-black shadow-inner">
                   🔍
                 </div>
                 <div>
                   <h3 className="text-sm sm:text-base font-black text-slate-900 mb-1">
-                    यह काम अभी लिस्ट में नहीं है
+                    "{categorySearchQuery}" नाम से कोई सेवा नहीं मिली
                   </h3>
                   <p className="text-xs text-slate-600 font-medium max-w-md mx-auto">
-                    यदि आप "{categorySearchQuery}" का काम करते हैं या दुकान चलाते हैं, तो अपनी दुकान/सर्विस ग्राम सेवा पर नि:शुल्क जोड़ें!
+                    कृपया कोई दूसरा नाम खोजें या नीचे दिए बटन से सभी श्रेणियां देखें।
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setAddShopCategory('other');
-                    setCustomCategoryInput(categorySearchQuery);
-                    setIsAddWorkerOpen(true);
-                  }}
-                  className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md border border-emerald-800 flex items-center justify-center gap-2 active:scale-95 transition-all"
+                  onClick={() => setCategorySearchQuery('')}
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs sm:text-sm rounded-xl shadow-xs active:scale-95 transition-all"
                 >
-                  <Plus className="w-4 h-4 stroke-[3]" />
-                  <span>+ अपना नया काम/दुकान जोड़ें (Add Custom Shop)</span>
+                  सभी श्रेणियां देखें (Show All Categories)
                 </button>
               </div>
             )}
@@ -3627,65 +3718,87 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{categoryGroupFilter === 'favorites' ? '⭐' : '🏪'}</span>
+            {/* RESULTS LOGIC: CHECK IF RESULTS ARE EMPTY (0) */}
+            {sortedWorkersWithDistance.length === 0 ? (
+              /* PROMINENT "NO RESULTS FOUND" BANNER AT THE VERY TOP OF CONTENT */
+              <div className="py-8 px-4 text-center bg-amber-50/80 rounded-3xl border-2 border-dashed border-amber-300 flex flex-col items-center justify-center gap-3.5 shadow-2xs animate-in fade-in duration-200">
+                <div className="w-14 h-14 bg-amber-100 text-amber-900 rounded-full flex items-center justify-center text-3xl font-black shadow-inner">
+                  {categoryGroupFilter === 'favorites' ? '⭐' : '🔍'}
+                </div>
+                
+                <div>
                   <h3 className="text-base sm:text-lg font-black text-slate-900">
                     {categoryGroupFilter === 'favorites'
-                      ? 'मेरी पसंद की दुकानें व सेवाएं (Favorites)'
-                      : `${activeCategoryObj?.hindiName || 'सेवा'} - ${activeVillageDisplay}`}
+                      ? 'कोई पसंदीदा दुकान नहीं मिली (No Favorites Saved)'
+                      : 'कोई दुकान या सेवा नहीं मिली (No Results Found)'}
                   </h3>
-                </div>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  {categoryGroupFilter === 'favorites'
-                    ? `आपकी पसंद में सहेजी गई कुल ${sortedWorkersWithDistance.length} दुकानें व सेवाएं`
-                    : `सबसे पहले आपके गाँव के काम व दुकानें (0 km), फिर पास के गाँव`}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsAddWorkerOpen(true)}
-                className="self-start sm:self-auto px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-2xl shadow-sm border border-amber-300 flex items-center gap-1.5 shrink-0"
-              >
-                <Plus className="w-4 h-4 stroke-[3]" />
-                <span>+ अपना काम / दुकान जोड़ें</span>
-              </button>
-            </div>
-
-            {sortedWorkersWithDistance.length === 0 ? (
-              <div className="py-8 px-4 text-center bg-amber-50/70 rounded-2xl border-2 border-dashed border-amber-300 flex flex-col items-center gap-3 shadow-2xs">
-                <span className="text-4xl">⭐</span>
-                <div>
-                  <p className="text-base font-bold text-slate-900">
+                  <p className="text-xs sm:text-sm text-slate-600 font-medium max-w-md mx-auto mt-1">
                     {categoryGroupFilter === 'favorites'
-                      ? 'आपने अभी तक कोई दुकान या काम अपनी पसंद (Favorites) में नहीं जोड़ा है।'
-                      : `${activeCategoryObj?.hindiName} के लिए इस क्षेत्र में कोई दुकान या सेवा पंजीकृत नहीं है।`}
-                  </p>
-                  <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto">
-                    {categoryGroupFilter === 'favorites'
-                      ? 'किसी भी दुकान के कार्ड पर ⭐ स्टार बटन दबाकर उसे अपनी पसंद सूची में सहेजें।'
-                      : 'क्या आप इस काम / दुकान से जुड़े हैं? अभी जोड़ें!'}
+                      ? 'आपने अभी तक कोई दुकान या काम अपनी पसंद (Favorites) में नहीं जोड़ा है। किसी भी दुकान के कार्ड पर ⭐ स्टार दबाकर सहेजें।'
+                      : `"${activeCategoryObj?.hindiName || 'यह सेवा'}" के लिए ${activeVillageDisplay}, ${selectedDistrict} में अभी कोई दुकान पंजीकृत नहीं है।`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (categoryGroupFilter === 'favorites') {
-                      setCategoryGroupFilter('all');
-                    } else {
-                      setIsAddWorkerOpen(true);
-                    }
-                  }}
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-sm"
-                >
-                  {categoryGroupFilter === 'favorites' ? 'सभी दुकानें देखें (View All Shops)' : '+ अपना काम / दुकान जोड़ें'}
-                </button>
+
+                {/* NAVIGATION ONLY ACTIONS (NO ADD BUSINESS CTA) */}
+                <div className="flex items-center gap-2.5 flex-wrap justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <ArrowLeft className="w-4 h-4 stroke-[3]" />
+                    <span>🛠️ दूसरी सेवा चुनें (Change Service)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(0)}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs sm:text-sm rounded-xl border border-slate-300 flex items-center gap-1.5 active:scale-95 transition-all"
+                  >
+                    <span>📍 दूसरा स्थान चुनें (Change Location)</span>
+                  </button>
+
+                  {categoryGroupFilter === 'favorites' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategoryGroupFilter('all');
+                        setCurrentStep(1);
+                      }}
+                      className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs active:scale-95 transition-all"
+                    >
+                      <span>सभी श्रेणियां देखें</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
+              /* RESULTS LIST WITH HEADER */
               <div className="flex flex-col gap-5">
                 
+                {/* Search Results Summary Header (No Add Business Button) */}
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{categoryGroupFilter === 'favorites' ? '⭐' : '🏪'}</span>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-slate-900">
+                        {categoryGroupFilter === 'favorites'
+                          ? 'मेरी पसंद की दुकानें व सेवाएं (Favorites)'
+                          : `${activeCategoryObj?.hindiName || 'सेवा'} - ${activeVillageDisplay}`}
+                      </h3>
+                      <p className="text-xs text-slate-600 font-medium mt-0.5">
+                        {categoryGroupFilter === 'favorites'
+                          ? `आपकी पसंद में सहेजी गई कुल ${sortedWorkersWithDistance.length} दुकानें व सेवाएं`
+                          : `कुल ${sortedWorkersWithDistance.length} दुकानें/सेवाएं उपलब्ध (0 km व पास के गाँव)`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black px-2.5 py-1 rounded-xl shrink-0">
+                    {sortedWorkersWithDistance.length} परिणाम
+                  </span>
+                </div>
+
                 {/* --- GROUP 1: EXACT VILLAGE WORKERS (0 km) --- */}
                 {exactVillageWorkers.length > 0 && (
                   <div className="flex flex-col gap-3">

@@ -10774,52 +10774,80 @@ export const ALL_INDIA_LOCATIONS: { [state: string]: { [district: string]: strin
       "Narela (नरेला)",
       "Alipur (अलीपुर)",
       "Model Town (मॉडल टाउन)",
-      "Burari (बुराड़ी)"
+      "Burari (बुराड़ी)",
+      "Jahangirpuri (जहांगीरपुरी)",
+      "Adarsh Nagar (आदर्श नगर)",
+      "Mukherjee Nagar (मुखर्जी नगर)",
+      " आजादपुर (Azadpur)",
+      "Timarpur (तिमरपुर)"
     ],
     "North East Delhi (उत्तर पूर्वी दिल्ली)": [
-      "North East Delhi Main Town (मुख्य कस्बा)",
-      "Tehsil Center (तहसील केंद्र)",
-      "Block HQ (ब्लॉक मुख्यालय)",
-      "Gram Panchayat 1 (ग्राम पंचायत 1)",
-      "Gram Panchayat 2 (ग्राम पंचायत 2)"
+      "Yamuna Vihar (यमुना विहार)",
+      "Karawal Nagar (करावल नगर)",
+      "Mustafabad (मुस्तफाबाद)",
+      "Seelampur (सीलमपुर)",
+      "Gokalpuri (गोकलपुरी)",
+      "Bhajanpura (भजनपुरा)",
+      "Sonia Vihar (सोनिया विहार)"
     ],
     "North West Delhi (उत्तर पश्चिमी दिल्ली)": [
       "Rohini (रोहिणी)",
+      "Jahangirpuri (जहांगीरपुरी)",
+      "Pitampura (पीतमपुरा)",
+      "Shalimar Bagh (शालीमार बाग)",
+      "Mangolpuri (मंगोलपुरी)",
+      "Sultanpuri (सुल्तानपुरी)",
+      "Ashok Vihar (अशोक विहार)",
       "Kanjhawala (कंझावला)",
       "Saraswati Vihar (सरस्वती विहार)",
-      "Bawana (बवाना)"
+      "Bawana (बवाना)",
+      "Prashant Vihar (प्रशांत विहार)",
+      "Kirari (किरारी)",
+      "Mundka (मुंडका)"
     ],
     "Shahdara (शाहदरा)": [
       "Shahdara (शाहदरा)",
       "Seemapuri (सीमापुरी)",
       "Vivek Vihar (विवेक विहार)",
-      "Dilshad Garden (दिलशाद गार्डन)"
+      "Dilshad Garden (दिलशाद गार्डन)",
+      "Anand Vihar (आनंद विहार)",
+      "Mansarovar Park (मानसरोवर पार्क)"
     ],
     "South Delhi (दक्षिण दिल्ली)": [
       "Hauz Khas (हौज खास)",
       "Mehrauli (महरौली)",
       "Saket (साकेत)",
-      "Chhatarpur (छतरपुर)"
+      "Chhatarpur (छतरपुर)",
+      "Malviya Nagar (मालवीय नगर)",
+      "Greater Kailash (ग्रेटर कैलाश)",
+      "Green Park (ग्रीन पार्क)"
     ],
     "South East Delhi (दक्षिण पूर्वी दिल्ली)": [
-      "South East Delhi Main Town (मुख्य कस्बा)",
-      "Tehsil Center (तहसील केंद्र)",
-      "Block HQ (ब्लॉक मुख्यालय)",
-      "Gram Panchayat 1 (ग्राम पंचायत 1)",
-      "Gram Panchayat 2 (ग्राम पंचायत 2)"
+      "Lajpat Nagar (लाजपत नगर)",
+      "Kalkaji (कालकाजी)",
+      "Okhla (ओखला)",
+      "Sarita Vihar (सरिता विहार)",
+      "Badarpur (बदरपुर)",
+      "Govindpuri (गोविंदपुरी)",
+      "Jamia Nagar (जामिया नगर)"
     ],
     "South West Delhi (दक्षिण पश्चिमी दिल्ली)": [
       "Dwarka (द्वारका)",
       "Najafgarh (नजफगढ़)",
       "Kapashera (कपासहेड़ा)",
-      "Bijwasan (बिजवासन)"
+      "Bijwasan (बिजवासन)",
+      "Palam (पालम)",
+      "Mahipalpur (महिपालपुर)",
+      "Uttam Nagar (उत्तम नगर)"
     ],
     "West Delhi (पश्चिम दिल्ली)": [
-      "West Delhi Main Town (मुख्य कस्बा)",
-      "Tehsil Center (तहसील केंद्र)",
-      "Block HQ (ब्लॉक मुख्यालय)",
-      "Gram Panchayat 1 (ग्राम पंचायत 1)",
-      "Gram Panchayat 2 (ग्राम पंचायत 2)"
+      "Janakpuri (जनकपुरी)",
+      "Rajouri Garden (राजौरी गार्डन)",
+      "Tilak Nagar (तिलक नगर)",
+      "Punjabi Bagh (पंजाबी बाग)",
+      "Paschim Vihar (पश्चिम विहार)",
+      "Patel Nagar (पटेल नगर)",
+      "Vikaspuri (विकासपुरी)"
     ]
   },
   "Delhi (दिल्ली (NCT))": {
@@ -10833,63 +10861,95 @@ export const ALL_INDIA_LOCATIONS: { [state: string]: { [district: string]: strin
       "Gandhi Nagar (गांधी नगर)",
       "Preet Vihar (प्रीत विहार)",
       "Mayur Vihar (मयूर विहार)",
-      "Patparganj (पटपड़गंज)"
+      "Patparganj (पटपड़गंज)",
+      "Laxmi Nagar (लक्ष्मी नगर)",
+      "Geeta Colony (गीता कॉलोनी)"
     ],
     "New Delhi (नई दिल्ली)": [
       "Connaught Place (कनॉट प्लेस)",
       "Chanakyapuri (चाणक्यपुरी)",
-      "Vasant Vihar (वसंत विहार)"
+      "Vasant Vihar (वसंत विहार)",
+      "Gole Market (गोल मार्केट)",
+      "Barakhamba (बाराखंभा)"
     ],
     "North Delhi (उत्तर दिल्ली)": [
       "Narela (नरेला)",
       "Alipur (अलीपुर)",
       "Model Town (मॉडल टाउन)",
-      "Burari (बुराड़ी)"
+      "Burari (बुराड़ी)",
+      "Jahangirpuri (जहांगीरपुरी)",
+      "Adarsh Nagar (आदर्श नगर)",
+      "Mukherjee Nagar (मुखर्जी नगर)",
+      "Azadpur (आजादपुर)",
+      "Timarpur (तिमरपुर)"
     ],
     "North East Delhi (उत्तर पूर्वी दिल्ली)": [
-      "North East Delhi Main Town (मुख्य कस्बा)",
-      "Tehsil Center (तहसील केंद्र)",
-      "Block HQ (ब्लॉक मुख्यालय)",
-      "Gram Panchayat 1 (ग्राम पंचायत 1)",
-      "Gram Panchayat 2 (ग्राम पंचायत 2)"
+      "Yamuna Vihar (यमुना विहार)",
+      "Karawal Nagar (करावल नगर)",
+      "Mustafabad (मुस्तफाबाद)",
+      "Seelampur (सीलमपुर)",
+      "Gokalpuri (गोकलपुरी)",
+      "Bhajanpura (भजनपुरा)",
+      "Sonia Vihar (सोनिया विहार)"
     ],
     "North West Delhi (उत्तर पश्चिमी दिल्ली)": [
       "Rohini (रोहिणी)",
+      "Jahangirpuri (जहांगीरपुरी)",
+      "Pitampura (पीतमपुरा)",
+      "Shalimar Bagh (शालीमार बाग)",
+      "Mangolpuri (मंगोलपुरी)",
+      "Sultanpuri (सुल्तानपुरी)",
+      "Ashok Vihar (अशोक विहार)",
       "Kanjhawala (कंझावला)",
       "Saraswati Vihar (सरस्वती विहार)",
-      "Bawana (बवाना)"
+      "Bawana (बवाना)",
+      "Prashant Vihar (प्रशांत विहार)",
+      "Kirari (किरारी)",
+      "Mundka (मुंडका)"
     ],
     "Shahdara (शाहदरा)": [
       "Shahdara (शाहदरा)",
       "Seemapuri (सीमापुरी)",
       "Vivek Vihar (विवेक विहार)",
-      "Dilshad Garden (दिलशाद गार्डन)"
+      "Dilshad Garden (दिलशाद गार्डन)",
+      "Anand Vihar (आनंद विहार)",
+      "Mansarovar Park (मानसरोवर पार्क)"
     ],
     "South Delhi (दक्षिण दिल्ली)": [
       "Hauz Khas (हौज खास)",
       "Mehrauli (महरौली)",
       "Saket (साकेत)",
-      "Chhatarpur (छतरपुर)"
+      "Chhatarpur (छतरपुर)",
+      "Malviya Nagar (मालवीय नगर)",
+      "Greater Kailash (ग्रेटर कैलाश)",
+      "Green Park (ग्रीन पार्क)"
     ],
     "South East Delhi (दक्षिण पूर्वी दिल्ली)": [
-      "South East Delhi Main Town (मुख्य कस्बा)",
-      "Tehsil Center (तहसील केंद्र)",
-      "Block HQ (ब्लॉक मुख्यालय)",
-      "Gram Panchayat 1 (ग्राम पंचायत 1)",
-      "Gram Panchayat 2 (ग्राम पंचायत 2)"
+      "Lajpat Nagar (लाजपत नगर)",
+      "Kalkaji (कालकाजी)",
+      "Okhla (ओखला)",
+      "Sarita Vihar (सरिता विहार)",
+      "Badarpur (बदरपुर)",
+      "Govindpuri (गोविंदपुरी)",
+      "Jamia Nagar (जामिया नगर)"
     ],
     "South West Delhi (दक्षिण पश्चिमी दिल्ली)": [
       "Dwarka (द्वारका)",
       "Najafgarh (नजफगढ़)",
       "Kapashera (कपासहेड़ा)",
-      "Bijwasan (बिजवासन)"
+      "Bijwasan (बिजवासन)",
+      "Palam (पालम)",
+      "Mahipalpur (महिपालपुर)",
+      "Uttam Nagar (उत्तम नगर)"
     ],
     "West Delhi (पश्चिम दिल्ली)": [
-      "West Delhi Main Town (मुख्य कस्बा)",
-      "Tehsil Center (तहसील केंद्र)",
-      "Block HQ (ब्लॉक मुख्यालय)",
-      "Gram Panchayat 1 (ग्राम पंचायत 1)",
-      "Gram Panchayat 2 (ग्राम पंचायत 2)"
+      "Janakpuri (जनकपुरी)",
+      "Rajouri Garden (राजौरी गार्डन)",
+      "Tilak Nagar (तिलक नगर)",
+      "Punjabi Bagh (पंजाबी बाग)",
+      "Paschim Vihar (पश्चिम विहार)",
+      "Patel Nagar (पटेल नगर)",
+      "Vikaspuri (विकासपुरी)"
     ]
   },
   "Jammu and Kashmir": {

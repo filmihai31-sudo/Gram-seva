@@ -17,7 +17,7 @@ import {
   Award,
   Smartphone
 } from 'lucide-react';
-import { WorkerService } from '../App';
+import { WorkerService } from '../types';
 
 export type CardTemplateId = 'emerald' | 'royalgold' | 'festiveorange' | 'darkslate' | 'classicred';
 

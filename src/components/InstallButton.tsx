@@ -165,7 +165,26 @@ export const PWAInstallGuideModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
 }> = ({ isOpen, onClose }) => {
-  const { isIframe, copiedLink, copyAppUrl, openInBrowserDirectly } = usePWAInstall();
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+
+  const copyAppUrl = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        navigator.clipboard.writeText(window.location.href);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+      } catch (err) {
+        console.warn('Failed to copy app url', err);
+      }
+    }
+  };
+
+  const openInBrowserDirectly = () => {
+    if (typeof window !== 'undefined') {
+      window.open(window.location.href, '_blank');
+    }
+  };
 
   if (!isOpen) return null;
 
