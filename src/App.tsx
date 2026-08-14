@@ -94,6 +94,7 @@ import {
 } from 'lucide-react';
 import { MapPicker, SingleShopMapView, MultiShopMapView, ShopPinItem } from './components/LeafletMap';
 import { VisitingCardModal } from './components/VisitingCardModal';
+import { InstallButton, InstallBanner } from './components/InstallButton';
 import {
   fetchWorkersFromFirestore,
   saveWorkerToFirestore,
@@ -2875,6 +2876,9 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-1 sm:gap-1.5 min-w-0 max-w-full">
+            {/* PWA Install App Button */}
+            <InstallButton />
+
             {/* Owner Admin Header Button (Shown if logged in) */}
             {isAdminLoggedIn && (
               <button
@@ -2967,7 +2971,10 @@ export default function App() {
         </div>
       </header>
 
-      <main className="w-full max-w-3xl px-3 sm:px-4 mt-3 flex-1 flex flex-col gap-4">
+      {/* PWA Install Banner for Mobile & Desktop Visitors */}
+      <InstallBanner />
+
+      <main className="w-full max-w-3xl px-3 sm:px-4 mt-1 flex-1 flex flex-col gap-4">
 
         {/* ==================== 1. TOP PAID & ADMOB BANNER SPACE ==================== */}
         <div className="w-full bg-gradient-to-r from-amber-100 via-amber-50 to-orange-100 border-2 border-dashed border-amber-400 rounded-3xl p-3 sm:p-4 text-center shadow-xs relative overflow-hidden flex flex-col gap-2">
