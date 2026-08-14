@@ -22,17 +22,22 @@
     <div id="root" class="overflow-x-hidden min-h-screen"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Register standard PWA Service Worker for standalone Android WebAPK generation
+      // Register standard PWA Service Worker for standalone Android WebAPK & Chrome PWA
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
+        function registerSW() {
           navigator.serviceWorker.register('/sw.js')
             .then((reg) => {
-              console.log('✅ ServiceWorker registered:', reg.scope);
+              console.log('✅ Gram Seva ServiceWorker registered:', reg.scope);
             })
             .catch((err) => {
-              console.warn('ServiceWorker registration error:', err);
+              console.warn('ServiceWorker registration fallback:', err);
             });
-        });
+        }
+        if (document.readyState === 'complete') {
+          registerSW();
+        } else {
+          window.addEventListener('load', registerSW);
+        }
       }
     </script>
   </body>

@@ -1,7 +1,8 @@
 {
+  "id": "/",
   "name": "Gram Seva",
   "short_name": "Gram Seva",
-  "description": "Gram Seva - Rural Business & Service Directory",
+  "description": "ग्राम सेवा - ग्रामीण मिस्त्री व स्थानीय दुकान डायरेक्टरी",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -33,5 +34,10 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "categories": [
+    "business",
+    "utilities",
+    "shopping"
   ]
 }
