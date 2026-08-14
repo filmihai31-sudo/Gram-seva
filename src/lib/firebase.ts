@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp, deleteApp, FirebaseApp } from 'firebase/app';
 import {
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  setLogLevel,
   collection,
   getDocs,
   addDoc,
@@ -12,6 +15,13 @@ import {
   deleteDoc,
   updateDoc
 } from 'firebase/firestore';
+
+// Suppress excessive connection debug warnings in offline/restricted network environments
+try {
+  setLogLevel('error');
+} catch {
+  // Ignore if unsupported
+}
 
 // Environment credentials or default fallback for dev/demo
 const metaEnv = (import.meta as unknown as { env?: Record<string, string> }).env || {};
@@ -60,14 +70,27 @@ export function initOrUpdateFirebase(customConfig?: FirebaseCustomConfig): { suc
   try {
     const existingApps = getApps();
     if (existingApps.length > 0) {
-      // In web app, we can use default app
       app = existingApps[0];
     } else {
       app = initializeApp(configToUse);
     }
-    db = getFirestore(app);
+    
+    // Initialize Firestore with force long polling & offline persistent local cache
+    try {
+      db = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+        localCache: persistentLocalCache({})
+      });
+    } catch {
+      try {
+        db = getFirestore(app);
+      } catch (innerErr) {
+        console.warn("Firestore secondary init:", innerErr);
+      }
+    }
+
     isFirebaseInitialized = true;
-    console.log("🔥 Firebase Firestore initialized successfully for Gram Seva!");
+    console.log("🔥 Firebase Firestore initialized with offline-resilient long polling!");
     return { success: true };
   } catch (error: any) {
     console.warn("⚠️ Firebase initializing in offline fallback mode:", error);
@@ -80,6 +103,28 @@ export function initOrUpdateFirebase(customConfig?: FirebaseCustomConfig): { suc
 initOrUpdateFirebase();
 
 export { app, db, isFirebaseInitialized };
+
+// Helper to safely execute Firestore operations with a timeout to prevent hanging UI
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = 4000, fallback: T): Promise<T> {
+  let timer: NodeJS.Timeout | number;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(fallback);
+    }, timeoutMs);
+  });
+
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timer as any);
+      return res;
+    }),
+    timeoutPromise
+  ]).catch((err) => {
+    clearTimeout(timer as any);
+    console.warn("Firestore operation timed out or failed gracefully:", err?.message || err);
+    return fallback;
+  });
+}
 
 export interface CloudWorker {
   id: string;
@@ -114,22 +159,28 @@ export interface CloudWorker {
   securityAnswer?: string;
 }
 
-// Fetch workers from Firebase Firestore
+// Fetch workers from Firebase Firestore with graceful fallback
 export async function fetchWorkersFromFirestore(): Promise<CloudWorker[]> {
   if (!db) {
-    throw new Error("Firestore not initialized");
+    return [];
   }
-  const workersRef = collection(db, 'workers');
-  const snapshot = await getDocs(workersRef);
-  const result: CloudWorker[] = [];
-  snapshot.forEach((docSnap) => {
-    const data = docSnap.data() as CloudWorker;
-    result.push({
-      ...data,
-      id: docSnap.id
-    });
-  });
-  return result;
+  return withTimeout(
+    (async () => {
+      const workersRef = collection(db!, 'workers');
+      const snapshot = await getDocs(workersRef);
+      const result: CloudWorker[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as CloudWorker;
+        result.push({
+          ...data,
+          id: docSnap.id
+        });
+      });
+      return result;
+    })(),
+    4000,
+    []
+  );
 }
 
 // Add worker to Firebase Firestore
@@ -220,18 +271,24 @@ export interface MasterCategory {
 // Fetch master locations from Firestore
 export async function fetchMasterLocationsFromFirestore(): Promise<MasterLocation[]> {
   if (!db) {
-    throw new Error("Firestore not initialized");
+    return [];
   }
-  const ref = collection(db, 'master_locations');
-  const snapshot = await getDocs(ref);
-  const result: MasterLocation[] = [];
-  snapshot.forEach((docSnap) => {
-    result.push({
-      ...(docSnap.data() as Omit<MasterLocation, 'id'>),
-      id: docSnap.id
-    });
-  });
-  return result;
+  return withTimeout(
+    (async () => {
+      const ref = collection(db!, 'master_locations');
+      const snapshot = await getDocs(ref);
+      const result: MasterLocation[] = [];
+      snapshot.forEach((docSnap) => {
+        result.push({
+          ...(docSnap.data() as Omit<MasterLocation, 'id'>),
+          id: docSnap.id
+        });
+      });
+      return result;
+    })(),
+    4000,
+    []
+  );
 }
 
 // Save master location to Firestore
@@ -272,18 +329,24 @@ export async function deleteMasterLocationFromFirestore(id: string): Promise<voi
 // Fetch master categories from Firestore
 export async function fetchMasterCategoriesFromFirestore(): Promise<MasterCategory[]> {
   if (!db) {
-    throw new Error("Firestore not initialized");
+    return [];
   }
-  const ref = collection(db, 'master_categories');
-  const snapshot = await getDocs(ref);
-  const result: MasterCategory[] = [];
-  snapshot.forEach((docSnap) => {
-    result.push({
-      ...(docSnap.data() as Omit<MasterCategory, 'id'>),
-      id: docSnap.id
-    });
-  });
-  return result;
+  return withTimeout(
+    (async () => {
+      const ref = collection(db!, 'master_categories');
+      const snapshot = await getDocs(ref);
+      const result: MasterCategory[] = [];
+      snapshot.forEach((docSnap) => {
+        result.push({
+          ...(docSnap.data() as Omit<MasterCategory, 'id'>),
+          id: docSnap.id
+        });
+      });
+      return result;
+    })(),
+    4000,
+    []
+  );
 }
 
 // Save master category to Firestore

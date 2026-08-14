@@ -24,29 +24,43 @@
     <div id="root" class="overflow-x-hidden min-h-screen"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Immediate Lightweight Inline Service Worker Registration for Instant PWA Audit Pass
+      // 2. Enable Silent Auto-Updates (Auto-Fetch new GitHub / Cloudflare builds)
       if ('serviceWorker' in navigator) {
-        try {
-          const swCode = `
-            const CACHE_NAME = 'gram-seva-cache-v1';
-            self.addEventListener('install', (e) => { self.skipWaiting(); });
-            self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
-            self.addEventListener('fetch', (e) => {
-              if (e.request.method === 'GET' && e.request.url.startsWith('http')) {
-                e.respondWith(
-                  caches.match(e.request).then((res) => res || fetch(e.request).catch(() => caches.match('/')))
-                );
-              }
+        // Reload page when new service worker takes control so user gets fresh build instantly
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            console.log('[PWA] New service worker activated, auto-refreshing for new build');
+            window.location.reload();
+          }
+        });
+
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('[PWA] Service Worker registered with scope:', registration.scope);
+
+              // Check for updates on initial registration
+              registration.update().catch(() => {});
+
+              // Auto-check for updates whenever user re-opens / switches back to the app
+              document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                  console.log('[PWA] App resumed into focus, checking for new builds...');
+                  registration.update().catch(() => {});
+                }
+              });
+
+              // Periodic update check every 5 minutes while open
+              setInterval(() => {
+                registration.update().catch(() => {});
+              }, 5 * 60 * 1000);
+            })
+            .catch((err) => {
+              console.warn('[PWA] ServiceWorker registration failed:', err);
             });
-          `;
-          const blob = new Blob([swCode], { type: 'application/javascript' });
-          const swBlobUrl = URL.createObjectURL(blob);
-          navigator.serviceWorker.register(swBlobUrl).catch(() => {
-            navigator.serviceWorker.register('/sw.js').catch(console.warn);
-          });
-        } catch (e) {
-          navigator.serviceWorker.register('/sw.js').catch(console.warn);
-        }
+        });
       }
     </script>
   </body>

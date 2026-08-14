@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* 1. Disable Chrome swipe-down Pull-to-Refresh permanently to feel like a native app */
+html, body, #root {
+  overscroll-behavior-y: none !important;
+  overscroll-behavior: none !important;
+}
