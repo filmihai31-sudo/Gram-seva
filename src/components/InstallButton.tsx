@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, X } from 'lucide-react';
+import { Download, Smartphone, MoreVertical, Share2, PlusSquare, X, CheckCircle2 } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -34,7 +34,8 @@ if (typeof window !== 'undefined') {
 }
 
 export function usePWAInstall() {
-  const [promptAvailable, setPromptAvailable] = useState<boolean>(Boolean(deferredPrompt));
+  const [hasPrompt, setHasPrompt] = useState<boolean>(Boolean(deferredPrompt));
+  const [showFallbackModal, setShowFallbackModal] = useState<boolean>(false);
   const [isInstalled, setIsInstalled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return (
@@ -46,7 +47,7 @@ export function usePWAInstall() {
 
   useEffect(() => {
     const update = () => {
-      setPromptAvailable(Boolean(deferredPrompt));
+      setHasPrompt(Boolean(deferredPrompt));
     };
 
     listeners.add(update);
@@ -59,7 +60,7 @@ export function usePWAInstall() {
       if (standalone) {
         setIsInstalled(true);
         deferredPrompt = null;
-        setPromptAvailable(false);
+        setHasPrompt(false);
       }
     };
 
@@ -71,77 +72,172 @@ export function usePWAInstall() {
   }, []);
 
   const triggerInstall = async () => {
-    if (!deferredPrompt) {
-      return;
-    }
-
-    try {
-      // Trigger native browser install dialog directly
-      await deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
-      if (choiceResult.outcome === 'accepted') {
-        setIsInstalled(true);
+    // 1. Native Trigger if deferredPrompt is ready
+    if (deferredPrompt) {
+      try {
+        await deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === 'accepted') {
+          setIsInstalled(true);
+        }
+        deferredPrompt = null;
+        setHasPrompt(false);
+        notifyListeners();
+      } catch (err) {
+        console.error('Install prompt error:', err);
+        setShowFallbackModal(true);
       }
-    } catch (err) {
-      console.error('Install prompt error:', err);
-    } finally {
-      deferredPrompt = null;
-      notifyListeners();
+    } else {
+      // 2. Smooth non-intrusive instruction modal (No alert!)
+      setShowFallbackModal(true);
     }
   };
 
   return {
-    isInstallable: promptAvailable && !isInstalled,
     isInstalled,
+    hasPrompt,
+    showFallbackModal,
+    setShowFallbackModal,
     triggerInstall
   };
 }
 
 /**
+ * Professional Non-Intrusive Modal for when native prompt is delayed or on iOS/browsers
+ */
+export const InstallInstructionsModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+}> = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl border-2 border-emerald-600 text-slate-800 relative">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+          title="बंद करें"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
+            <Smartphone className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="font-black text-lg text-slate-900 leading-tight">
+              ग्राम सेवा ऐप इंस्टॉल करें
+            </h3>
+            <p className="text-xs text-emerald-700 font-bold">Install to Home Screen</p>
+          </div>
+        </div>
+
+        {/* Steps */}
+        <div className="py-4 space-y-3 text-sm">
+          <div className="flex items-start gap-3 p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100">
+            <span className="bg-emerald-600 text-white font-black rounded-full w-6 h-6 flex items-center justify-center shrink-0 text-xs shadow-xs">
+              1
+            </span>
+            <div className="text-slate-700 font-medium leading-relaxed">
+              ब्राउज़र के ऊपर या नीचे स्थित <strong className="text-slate-900 font-black">3 डॉट्स (<MoreVertical className="w-3.5 h-3.5 inline text-slate-800 -mt-0.5" />)</strong> या <strong className="text-slate-900 font-black">शेयर (<Share2 className="w-3.5 h-3.5 inline text-blue-600 -mt-0.5" />)</strong> बटन पर टैप करें।
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100">
+            <span className="bg-emerald-600 text-white font-black rounded-full w-6 h-6 flex items-center justify-center shrink-0 text-xs shadow-xs">
+              2
+            </span>
+            <div className="text-slate-700 font-medium leading-relaxed">
+              मेनू में <strong className="text-emerald-800 font-black">'Install app' (ऐप इंस्टॉल करें)</strong> या <strong className="text-emerald-800 font-black">'Add to Home screen' (<PlusSquare className="w-3.5 h-3.5 inline text-emerald-800 -mt-0.5" /> होम स्क्रीन पर जोड़ें)</strong> चुनें।
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 p-3 bg-emerald-50/70 rounded-2xl border border-emerald-100">
+            <span className="bg-emerald-600 text-white font-black rounded-full w-6 h-6 flex items-center justify-center shrink-0 text-xs shadow-xs">
+              3
+            </span>
+            <div className="text-slate-700 font-medium leading-relaxed">
+              <strong className="text-slate-900 font-black">'Install' / 'Add'</strong> दबाएं। ऐप तुरंत आपके फोन के मेनू में आ जाएगा!
+            </div>
+          </div>
+        </div>
+
+        {/* Action button */}
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black text-sm rounded-2xl shadow-lg border border-emerald-500 transition-all flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>समझ गया (OK)</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/**
  * Reusable Header / Inline Install Button
- * Hidden entirely if deferredPrompt is null or already installed
+ * Stays permanently visible until the app is installed
+ * Styled as a native app button (Green background, white text, rounded corners)
  */
 export const InstallButton: React.FC<{
   className?: string;
   variant?: 'header' | 'banner' | 'card' | 'floating';
 }> = ({ className = '', variant = 'header' }) => {
-  const { isInstallable, triggerInstall } = usePWAInstall();
+  const { isInstalled, triggerInstall, showFallbackModal, setShowFallbackModal } = usePWAInstall();
 
-  // If prompt is not ready or already installed, hide the button completely
-  if (!isInstallable) {
+  // If already installed, hide
+  if (isInstalled) {
     return null;
   }
 
   return (
-    <button
-      id="pwa-install-btn"
-      onClick={triggerInstall}
-      className={
-        className ||
-        (variant === 'header'
-          ? 'p-1.5 sm:px-2.5 sm:py-1 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs rounded-xl shadow-md border-2 border-amber-200 flex items-center gap-1.5 transition-all shrink-0 whitespace-nowrap cursor-pointer animate-pulse'
-          : 'w-full py-3 px-4 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm rounded-xl shadow-lg border-2 border-amber-300 flex items-center justify-center gap-2 active:scale-98 transition-all')
-      }
-      title="ग्राम सेवा ऐप इंस्टॉल करें (Install App)"
-    >
-      <Download className="w-4 h-4 text-slate-950 stroke-[2.5]" />
-      <span className="hidden sm:inline">ऐप इंस्टॉल करें 📲</span>
-      <span className="sm:hidden font-black">इंस्टॉल 📲</span>
-    </button>
+    <>
+      <button
+        id="pwa-install-header-btn"
+        onClick={triggerInstall}
+        className={
+          className ||
+          (variant === 'header'
+            ? 'px-2.5 py-1.5 sm:px-3 sm:py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs rounded-xl shadow-md border-2 border-emerald-400 flex items-center gap-1.5 transition-all shrink-0 whitespace-nowrap cursor-pointer'
+            : 'w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm rounded-xl shadow-lg border-2 border-emerald-400 flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer')
+        }
+        title="ग्राम सेवा ऐप इंस्टॉल करें (Install App)"
+      >
+        <Download className="w-3.5 h-3.5 text-white stroke-[3]" />
+        <span className="hidden sm:inline">ऐप इंस्टॉल करें 📲</span>
+        <span className="sm:hidden font-black">इंस्टॉल 📲</span>
+      </button>
+
+      <InstallInstructionsModal
+        isOpen={showFallbackModal}
+        onClose={() => setShowFallbackModal(false)}
+      />
+    </>
   );
 };
 
 /**
- * Prominent Smart Install Banner (Only shown when beforeinstallprompt is ready and not yet installed)
+ * Permanent Smart Install Banner
+ * Stays visible until installed (with optional minimize/dismiss for the current session)
  */
 export const InstallBanner: React.FC<{ onDismiss?: () => void }> = ({ onDismiss }) => {
-  const { isInstallable, triggerInstall } = usePWAInstall();
+  const { isInstalled, triggerInstall, showFallbackModal, setShowFallbackModal } = usePWAInstall();
   const [dismissed, setDismissed] = useState<boolean>(() => {
     return localStorage.getItem('gramseva_pwa_banner_dismissed') === 'true';
   });
 
-  if (!isInstallable || dismissed) {
-    return null;
+  if (isInstalled || dismissed) {
+    return (
+      <InstallInstructionsModal
+        isOpen={showFallbackModal}
+        onClose={() => setShowFallbackModal(false)}
+      />
+    );
   }
 
   const handleDismiss = () => {
@@ -151,57 +247,65 @@ export const InstallBanner: React.FC<{ onDismiss?: () => void }> = ({ onDismiss 
   };
 
   return (
-    <div
-      id="pwa-install-banner"
-      className="w-full max-w-3xl mx-auto px-2 sm:px-4 my-2.5"
-    >
-      <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-green-700 text-white p-3 sm:p-4 rounded-2xl shadow-xl border-2 border-amber-300 flex flex-col sm:flex-row items-center justify-between gap-3 relative overflow-hidden">
-        {/* Subtle Background Pattern */}
-        <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 pointer-events-none text-9xl">
-          🚜
-        </div>
+    <>
+      <div
+        id="pwa-install-banner"
+        className="w-full max-w-3xl mx-auto px-2 sm:px-4 my-2"
+      >
+        <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-green-700 text-white p-3 sm:p-3.5 rounded-2xl shadow-lg border-2 border-emerald-500/80 flex flex-col sm:flex-row items-center justify-between gap-2.5 relative overflow-hidden">
+          {/* Background tractor accent */}
+          <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 pointer-events-none text-8xl">
+            🚜
+          </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <img
-            src="/pwa-192x192.png"
-            alt="Gram Seva App Icon"
-            className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl shadow-md border-2 border-amber-300 bg-white p-0.5 shrink-0"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
-            }}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <h4 className="font-black text-sm sm:text-base text-amber-300 tracking-wide">
-                ग्राम सेवा ऐप इंस्टॉल करें
-              </h4>
-              <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.5 rounded-full uppercase">
-                मुफ़्त PWA
-              </span>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <img
+              src="/pwa-192x192.png"
+              alt="Gram Seva App Icon"
+              className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl shadow-md border-2 border-white bg-white p-0.5 shrink-0"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-black text-sm sm:text-base text-amber-300 tracking-wide">
+                  ग्राम सेवा ऐप इंस्टॉल करें
+                </h4>
+                <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-1.5 py-0.5 rounded-full uppercase">
+                  Fast App
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100 font-medium line-clamp-1">
+                बिना इंटरनेट भी सभी मिस्त्री व दुकानों के नंबर तुरंत पाएं!
+              </p>
             </div>
-            <p className="text-xs text-emerald-100 font-medium line-clamp-1">
-              बिना इंटरनेट ऑफलाइन भी मिस्त्री व दुकानों के नंबर पाएं!
-            </p>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+            <button
+              id="pwa-banner-install-btn"
+              onClick={triggerInstall}
+              className="flex-1 sm:flex-none px-4 py-2 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl shadow-md border border-emerald-300 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Download className="w-4 h-4 stroke-[3]" />
+              <span>अभी इंस्टॉल करें 📲</span>
+            </button>
+            <button
+              onClick={handleDismiss}
+              className="p-1.5 text-emerald-200 hover:text-white hover:bg-emerald-600/50 rounded-xl transition-colors cursor-pointer"
+              title="बंद करें"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
-          <button
-            onClick={triggerInstall}
-            className="flex-1 sm:flex-none px-4 py-2 bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg border border-amber-200 flex items-center justify-center gap-1.5 transition-transform cursor-pointer"
-          >
-            <Download className="w-4 h-4 stroke-[2.5]" />
-            <span>अभी इंस्टॉल करें</span>
-          </button>
-          <button
-            onClick={handleDismiss}
-            className="p-2 text-emerald-200 hover:text-white hover:bg-emerald-600/50 rounded-xl transition-colors cursor-pointer"
-            title="बंद करें"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
       </div>
-    </div>
+
+      <InstallInstructionsModal
+        isOpen={showFallbackModal}
+        onClose={() => setShowFallbackModal(false)}
+      />
+    </>
   );
 };
