@@ -2831,7 +2831,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/80 text-slate-900 font-sans pb-16 flex flex-col items-center overflow-x-hidden w-full relative">
+    <div className="h-auto min-h-screen bg-slate-100/80 text-slate-900 font-sans pb-16 flex flex-col items-center overflow-x-hidden w-full relative">
       
       {/* USER FEEDBACK TOAST FOR VOICE GUIDANCE */}
       {voiceToast && (

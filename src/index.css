@@ -1,9 +1,11 @@
 @import "tailwindcss";
 
-/* 1. Restore normal vertical finger scrolling smoothly across the entire page */
+/* Ensure fluid vertical page scrolling across all devices */
 html, body, #root {
   overflow-y: auto !important;
-  min-height: 100vh;
-  overscroll-behavior-y: contain;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  overscroll-behavior-y: auto;
 }
 
