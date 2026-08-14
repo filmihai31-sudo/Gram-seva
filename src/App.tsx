@@ -121,7 +121,7 @@ import {
 } from './lib/firebase';
 
 // --- Types ---
-interface WorkerService {
+export interface WorkerService {
   id: string;
   name: string; // Owner Name
   shopName?: string; // Shop / Business Name
