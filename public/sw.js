@@ -3,6 +3,8 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/pwa-192.png',
+  '/pwa-512.png',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
   '/screenshot-mobile.png',
@@ -10,7 +12,7 @@ const ASSETS_TO_CACHE = [
   '/icon.svg'
 ];
 
-// Install Event
+// Install Event - Pre-cache App Shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -22,7 +24,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate Event
+// Activate Event - Clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -38,14 +40,13 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Network First with Cache Fallback
+// Fetch Event - Handle offline requests & caching (Required by Chrome PWA Audit)
 self.addEventListener('fetch', (event) => {
-  // Ignore non-GET requests or Firebase / API calls
   if (event.request.method !== 'GET') return;
-  
+
   const url = new URL(event.request.url);
-  
-  // Skip cross-origin API / Firestore / External calls from offline shell caching
+
+  // Allow browser to handle non-origin / external APIs directly
   if (!url.origin.includes(self.location.origin) && !url.href.includes('unpkg.com')) {
     return;
   }
@@ -53,7 +54,6 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Clone response to put in cache for static assets
         if (response && response.status === 200 && response.type === 'basic') {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -63,7 +63,6 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Offline Fallback
         return caches.match(event.request).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
