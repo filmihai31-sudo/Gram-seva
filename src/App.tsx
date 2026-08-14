@@ -119,6 +119,12 @@ import {
   MasterLocation,
   MasterCategory
 } from './lib/firebase';
+import {
+  ALL_INDIAN_STATES_AND_UTS,
+  ALL_INDIA_LOCATIONS,
+  getDistrictsForState,
+  getVillagesForDistrict
+} from './data/indiaLocations';
 
 // --- Types ---
 export interface WorkerService {
@@ -1362,12 +1368,16 @@ const calculateVillageDistance = (userVil: string, workerVil: string): number =>
 
 export default function App() {
   // --- Location States ---
-  const [statesList, setStatesList] = useState<string[]>([]);
+  const [statesList, setStatesList] = useState<string[]>(ALL_INDIAN_STATES_AND_UTS);
   const [districtsMap, setDistrictsMap] = useState<{ [state: string]: string[] }>({});
   const [villagesMap, setVillagesMap] = useState<{ [district: string]: string[] }>({});
 
   const [selectedState, setSelectedState] = useState<string>(() => {
-    return localStorage.getItem('gramseva_state') || 'Uttar Pradesh (उत्तर प्रदेश)';
+    const saved = localStorage.getItem('gramseva_state');
+    if (saved && saved !== 'states' && (ALL_INDIAN_STATES_AND_UTS.includes(saved) || ALL_INDIA_LOCATIONS[saved])) {
+      return saved;
+    }
+    return 'Uttar Pradesh';
   });
   const [selectedDistrict, setSelectedDistrict] = useState<string>(() => {
     return localStorage.getItem('gramseva_district') || 'Ghaziabad (गाजियाबाद)';
@@ -1657,29 +1667,9 @@ export default function App() {
     }
   }, [workers]);
 
-  // Dynamic Location Data Fetching on Mount
+  // Location dataset is loaded from ALL_INDIAN_STATES_AND_UTS and ALL_INDIA_LOCATIONS
   useEffect(() => {
-    const fetchLocationData = async () => {
-      try {
-        const response = await fetch(
-          'https://raw.githubusercontent.com/sab99r/Indian-States-And-Districts/master/states-and-districts.json'
-        );
-        if (response.ok) {
-          const data = await response.json();
-          if (data && typeof data === 'object') {
-            const states = Object.keys(data);
-            setStatesList(states);
-            setDistrictsMap(data);
-          }
-        } else {
-          setStatesList(Object.keys(FALLBACK_INDIA_DATA));
-        }
-      } catch (err) {
-        console.warn('Using fallback location dataset:', err);
-        setStatesList(Object.keys(FALLBACK_INDIA_DATA));
-      }
-    };
-    fetchLocationData();
+    setStatesList(ALL_INDIAN_STATES_AND_UTS);
   }, []);
 
   // OTP Countdown Timer Effect
@@ -2553,13 +2543,13 @@ export default function App() {
 
   const currentDistricts = useMemo(() => {
     if (!selectedState) return [];
-    const base = districtsMap[selectedState] || (FALLBACK_INDIA_DATA[selectedState] ? Object.keys(FALLBACK_INDIA_DATA[selectedState]) : []);
+    const base = getDistrictsForState(selectedState);
     const set = new Set(base);
     approvedMasterLocations.forEach((l) => {
       if (l.state === selectedState && l.district) set.add(l.district);
     });
     return Array.from(set);
-  }, [districtsMap, selectedState, approvedMasterLocations]);
+  }, [selectedState, approvedMasterLocations]);
 
   const filteredDistricts = useMemo(() => {
     if (!districtSearch.trim()) return currentDistricts;
@@ -2569,46 +2559,39 @@ export default function App() {
 
   const currentVillages = useMemo(() => {
     if (!selectedDistrict) return [];
-    let base: string[] = [];
-    if (villagesMap[selectedDistrict]) {
-      base = villagesMap[selectedDistrict];
-    } else {
-      for (const st in FALLBACK_INDIA_DATA) {
-        if (FALLBACK_INDIA_DATA[st][selectedDistrict]) {
-          base = FALLBACK_INDIA_DATA[st][selectedDistrict];
-          break;
-        }
-      }
-    }
-    if (base.length === 0) {
-      base = [
-        'Kalchina (कलछीना)',
-        'Nigrawathi (निगरावठी)',
-        'Samaypur (समयपुर)',
-        'Akalpur (अकलपुर)',
-        'Nurpur (नूरपुर)',
-        'Barayla (बरैला)',
-        'Mindori (मिंडोरी)',
-        'Nindori (निंदोरी)',
-        'Nahal (नाहल)',
-        'Dasna (डासना)',
-        'Loni (लोणी)',
-        'Modinagar (मोदीनगर)',
-        'Muradnagar (मुरादनगर)'
-      ];
-    }
+    const base = getVillagesForDistrict(selectedState, selectedDistrict);
     const set = new Set(base);
     approvedMasterLocations.forEach((l) => {
       if (l.district === selectedDistrict && l.village) set.add(l.village);
     });
     return Array.from(set);
-  }, [villagesMap, selectedDistrict, approvedMasterLocations]);
+  }, [selectedState, selectedDistrict, approvedMasterLocations]);
 
   const filteredVillages = useMemo(() => {
     if (!villageSearch.trim()) return currentVillages;
     const q = villageSearch.toLowerCase().trim();
     return currentVillages.filter((v) => v.toLowerCase().includes(q));
   }, [currentVillages, villageSearch]);
+
+  const addShopDistricts = useMemo(() => {
+    if (!addShopState || addShopState === 'other') return currentDistricts;
+    const base = getDistrictsForState(addShopState);
+    const set = new Set(base);
+    approvedMasterLocations.forEach((l) => {
+      if (l.state === addShopState && l.district) set.add(l.district);
+    });
+    return Array.from(set);
+  }, [addShopState, currentDistricts, approvedMasterLocations]);
+
+  const addShopVillages = useMemo(() => {
+    if (!addShopDistrict || addShopDistrict === 'other') return currentVillages;
+    const base = getVillagesForDistrict(addShopState, addShopDistrict);
+    const set = new Set(base);
+    approvedMasterLocations.forEach((l) => {
+      if (l.district === addShopDistrict && l.village) set.add(l.village);
+    });
+    return Array.from(set);
+  }, [addShopState, addShopDistrict, currentVillages, approvedMasterLocations]);
 
   const activeVillageDisplay = isManualVillage ? (manualVillageName.trim() || 'आपका गाँव (Your Village)') : selectedVillage;
 
@@ -3114,6 +3097,14 @@ export default function App() {
                         setSelectedState(st);
                         setIsStateOpen(false);
                         setStateSearch('');
+                        const dists = getDistrictsForState(st);
+                        if (dists && dists.length > 0) {
+                          setSelectedDistrict(dists[0]);
+                          const vills = getVillagesForDistrict(st, dists[0]);
+                          if (vills && vills.length > 0) {
+                            setSelectedVillage(vills[0]);
+                          }
+                        }
                       }}
                       className={`w-full text-left px-3 py-2 text-xs font-bold rounded-xl transition-colors ${
                         selectedState === st ? 'bg-emerald-100 text-emerald-900 font-black' : 'hover:bg-slate-100'
@@ -3158,6 +3149,10 @@ export default function App() {
                         setSelectedDistrict(d);
                         setIsDistrictOpen(false);
                         setDistrictSearch('');
+                        const vills = getVillagesForDistrict(selectedState, d);
+                        if (vills && vills.length > 0) {
+                          setSelectedVillage(vills[0]);
+                        }
                       }}
                       className={`w-full text-left px-3 py-2 text-xs font-bold rounded-xl transition-colors ${
                         selectedDistrict === d ? 'bg-emerald-100 text-emerald-900 font-black' : 'hover:bg-slate-100'
@@ -3741,7 +3736,20 @@ export default function App() {
                     <label className="block text-[11px] font-black text-slate-700 mb-1">राज्य (State)</label>
                     <select
                       value={addShopState}
-                      onChange={(e) => setAddShopState(e.target.value)}
+                      onChange={(e) => {
+                        const newSt = e.target.value;
+                        setAddShopState(newSt);
+                        if (newSt !== 'other') {
+                          const dists = getDistrictsForState(newSt);
+                          if (dists && dists.length > 0) {
+                            setAddShopDistrict(dists[0]);
+                            const vills = getVillagesForDistrict(newSt, dists[0]);
+                            if (vills && vills.length > 0) {
+                              setAddShopVillage(vills[0]);
+                            }
+                          }
+                        }
+                      }}
                       className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
                     >
                       {allStatesList.map((st) => (
@@ -3766,10 +3774,19 @@ export default function App() {
                     <label className="block text-[11px] font-black text-slate-700 mb-1">जिला (District)</label>
                     <select
                       value={addShopDistrict}
-                      onChange={(e) => setAddShopDistrict(e.target.value)}
+                      onChange={(e) => {
+                        const newDist = e.target.value;
+                        setAddShopDistrict(newDist);
+                        if (newDist !== 'other') {
+                          const vills = getVillagesForDistrict(addShopState, newDist);
+                          if (vills && vills.length > 0) {
+                            setAddShopVillage(vills[0]);
+                          }
+                        }
+                      }}
                       className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
                     >
-                      {currentDistricts.map((d) => (
+                      {addShopDistricts.map((d) => (
                         <option key={d} value={d}>{d}</option>
                       ))}
                       <option value="other">➕ अन्य जिला (Other District)...</option>
@@ -3794,7 +3811,7 @@ export default function App() {
                       onChange={(e) => setAddShopVillage(e.target.value)}
                       className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
                     >
-                      {currentVillages.map((v) => (
+                      {addShopVillages.map((v) => (
                         <option key={v} value={v}>{v}</option>
                       ))}
                       <option value="other">➕ अन्य गाँव (Other Village)...</option>
