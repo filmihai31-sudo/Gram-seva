@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Zap,
   Hammer,
@@ -33,6 +34,7 @@ import {
   Navigation,
   Sparkles,
   SlidersHorizontal,
+  ArrowUpDown,
   Info,
   Settings,
   ShieldAlert,
@@ -1352,6 +1354,10 @@ export default function App() {
   const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
   const [categoryGroupFilter, setCategoryGroupFilter] = useState<string>('all');
 
+  // Results View Proximity & Rating Sort By Option: 'distance' (Closest distance first) | 'rating' (Highest rating first)
+  const [resultsSortBy, setResultsSortBy] = useState<'distance' | 'rating'>('distance');
+  const [isSortByOpen, setIsSortByOpen] = useState<boolean>(false);
+
   // Firebase DB vs LocalStorage Mode Toggle (Default: Cloud DB active in production)
   const [useCloudDb, setUseCloudDb] = useState<boolean>(true);
 
@@ -1557,6 +1563,7 @@ export default function App() {
   const stateDropdownRef = useRef<HTMLDivElement>(null);
   const districtDropdownRef = useRef<HTMLDivElement>(null);
   const villageComboboxRef = useRef<HTMLDivElement>(null);
+  const sortByDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -1569,6 +1576,9 @@ export default function App() {
       }
       if (districtDropdownRef.current && !districtDropdownRef.current.contains(target)) {
         setIsDistrictOpen(false);
+      }
+      if (sortByDropdownRef.current && !sortByDropdownRef.current.contains(target)) {
+        setIsSortByOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -2572,7 +2582,7 @@ export default function App() {
     (isManualVillage ? manualVillageName.trim().length > 0 : selectedVillage && selectedVillage.trim().length > 0)
   );
 
-  // WORKERS PROXIMITY SORTING ENGINE
+  // WORKERS PROXIMITY & RATING SORTING ENGINE
   const sortedWorkersWithDistance = useMemo(() => {
     let candidateWorkers: WorkerService[] = [];
 
@@ -2594,17 +2604,42 @@ export default function App() {
     }
 
     const mapped = candidateWorkers.map((worker) => {
-      const dist = calculateVillageDistance(activeVillageDisplay, worker.village);
+      let dist = 0;
+      const isExactName = cleanVillage(activeVillageDisplay) === cleanVillage(worker.village);
+      if (isExactName) {
+        dist = 0;
+      } else if (worker.lat && worker.lng && userGpsLat && userGpsLng) {
+        const geoDist = getDistanceKm(userGpsLat, userGpsLng, worker.lat, worker.lng);
+        dist = geoDist > 0 ? geoDist : calculateVillageDistance(activeVillageDisplay, worker.village);
+      } else {
+        dist = calculateVillageDistance(activeVillageDisplay, worker.village);
+      }
+
       return {
         ...worker,
         distanceKm: dist,
-        isExactVillage: dist === 0
+        isExactVillage: dist === 0 || isExactName
       };
     });
 
-    mapped.sort((a, b) => a.distanceKm - b.distanceKm);
+    if (resultsSortBy === 'rating') {
+      // Sort by Highest rating first (e.g. 5.0 -> 4.9 -> 4.8), tie-break with closest distance
+      mapped.sort((a, b) => {
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
+        return (b.jobsDone || 0) - (a.jobsDone || 0);
+      });
+    } else {
+      // Sort by Closest distance first (0 km -> 2.0 km -> 4.5 km), tie-break with highest rating
+      mapped.sort((a, b) => {
+        if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        return (b.jobsDone || 0) - (a.jobsDone || 0);
+      });
+    }
+
     return mapped;
-  }, [workers, selectedCategory, categoryGroupFilter, favorites, activeVillageDisplay]);
+  }, [workers, selectedCategory, categoryGroupFilter, favorites, activeVillageDisplay, resultsSortBy, userGpsLat, userGpsLng]);
 
   // Grouped workers by distance bucket
   const exactVillageWorkers = useMemo(() => {
@@ -3773,12 +3808,12 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* RESULTS LIST WITH HEADER */
+              /* RESULTS LIST WITH HEADER & SORT BY CONTROLS */
               <div className="flex flex-col gap-5">
                 
-                {/* Search Results Summary Header (No Add Business Button) */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                  <div className="flex items-center gap-2">
+                {/* Search Results Summary Header with Sort By Dropdown */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-2.5">
                     <span className="text-2xl">{categoryGroupFilter === 'favorites' ? '⭐' : '🏪'}</span>
                     <div>
                       <h3 className="text-base sm:text-lg font-black text-slate-900">
@@ -3789,51 +3824,158 @@ export default function App() {
                       <p className="text-xs text-slate-600 font-medium mt-0.5">
                         {categoryGroupFilter === 'favorites'
                           ? `आपकी पसंद में सहेजी गई कुल ${sortedWorkersWithDistance.length} दुकानें व सेवाएं`
-                          : `कुल ${sortedWorkersWithDistance.length} दुकानें/सेवाएं उपलब्ध (0 km व पास के गाँव)`}
+                          : `कुल ${sortedWorkersWithDistance.length} दुकानें/सेवाएं उपलब्ध (${resultsSortBy === 'distance' ? 'नजदीकी दूरी अनुसार' : 'उच्चतम रेटिंग अनुसार'})`}
                       </p>
                     </div>
                   </div>
 
-                  <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black px-2.5 py-1 rounded-xl shrink-0">
-                    {sortedWorkersWithDistance.length} परिणाम
-                  </span>
+                  {/* SORT BY DROPDOWN & RESULTS BADGE */}
+                  <div className="flex items-center gap-2 self-start sm:self-center flex-wrap">
+                    <div className="relative" ref={sortByDropdownRef}>
+                      <button
+                        type="button"
+                        onClick={() => setIsSortByOpen(!isSortByOpen)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border-2 border-emerald-500 rounded-xl text-xs font-black text-slate-800 shadow-2xs transition-all cursor-pointer"
+                        title="क्रमबद्ध करें (Sort By)"
+                      >
+                        <ArrowUpDown className="w-3.5 h-3.5 text-emerald-700" />
+                        <span className="text-slate-500 font-medium hidden sm:inline">क्रम (Sort):</span>
+                        <span className="text-emerald-950 font-black">
+                          {resultsSortBy === 'distance' ? '📍 नजदीकी दूरी (Distance)' : '⭐ उच्चतम रेटिंग (Rating)'}
+                        </span>
+                        <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${isSortByOpen ? 'rotate-180 text-emerald-700' : ''}`} />
+                      </button>
+
+                      <AnimatePresence>
+                        {isSortByOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                            className="absolute right-0 top-full mt-1.5 w-64 bg-white border-2 border-emerald-500 rounded-2xl shadow-xl z-30 p-1.5 flex flex-col gap-1 origin-top-right"
+                          >
+                            <div className="px-2.5 py-1 text-[10px] font-black text-slate-400 border-b border-slate-100 uppercase tracking-wider">
+                              क्रमबद्ध विकल्प (Sort Results By)
+                            </div>
+                            
+                            {/* Closest distance first */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResultsSortBy('distance');
+                                setIsSortByOpen(false);
+                                speakText('दुकानें नजदीकी दूरी के अनुसार क्रमबद्ध की गईं।');
+                              }}
+                              className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                                resultsSortBy === 'distance'
+                                  ? 'bg-emerald-100 text-emerald-950 font-black border border-emerald-300'
+                                  : 'hover:bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">📍</span>
+                                <div>
+                                  <p className="leading-tight">नजदीकी दूरी पहले</p>
+                                  <p className="text-[10px] text-slate-500 font-normal">Closest distance first (Lat/Lng)</p>
+                                </div>
+                              </div>
+                              {resultsSortBy === 'distance' && <Check className="w-4 h-4 text-emerald-700 shrink-0" />}
+                            </button>
+
+                            {/* Highest rating first */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setResultsSortBy('rating');
+                                setIsSortByOpen(false);
+                                speakText('दुकानें उच्चतम रेटिंग के अनुसार क्रमबद्ध की गईं।');
+                              }}
+                              className={`w-full text-left px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                                resultsSortBy === 'rating'
+                                  ? 'bg-amber-100 text-amber-950 font-black border border-amber-300'
+                                  : 'hover:bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">⭐</span>
+                                <div>
+                                  <p className="leading-tight">उच्चतम रेटिंग पहले</p>
+                                  <p className="text-[10px] text-slate-500 font-normal">Highest rating first (5.0 ⭐)</p>
+                                </div>
+                              </div>
+                              {resultsSortBy === 'rating' && <Check className="w-4 h-4 text-amber-700 shrink-0" />}
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-black px-2.5 py-1.5 rounded-xl shrink-0">
+                      {sortedWorkersWithDistance.length} परिणाम
+                    </span>
+                  </div>
                 </div>
 
-                {/* --- GROUP 1: EXACT VILLAGE WORKERS (0 km) --- */}
-                {exactVillageWorkers.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    <div className="bg-emerald-100 border-l-4 border-emerald-600 p-2.5 rounded-r-2xl flex items-center justify-between text-emerald-950 shadow-2xs">
-                      <span className="text-xs sm:text-sm font-black flex items-center gap-1.5">
-                        🎯 आपके गाँव में उपलब्ध सेवा व दुकानें ({activeVillageDisplay} - 0 km)
-                      </span>
-                      <span className="bg-emerald-700 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                        {exactVillageWorkers.length} सेवा / दुकानें उपलब्ध
-                      </span>
-                    </div>
+                {/* --- RENDER WORKERS BASED ON SORT OPTION --- */}
+                <motion.div layout className="flex flex-col gap-5">
+                  {resultsSortBy === 'rating' ? (
+                    /* RATING SORTED VIEW: UNIFIED RANKED LIST (5.0 -> 4.9 -> 4.8 ...) */
+                    <motion.div layout className="flex flex-col gap-3">
+                      <div className="bg-amber-100/90 border-l-4 border-amber-500 p-2.5 rounded-r-2xl flex items-center justify-between text-amber-950 shadow-2xs">
+                        <span className="text-xs sm:text-sm font-black flex items-center gap-1.5">
+                          ⭐ उच्चतम ग्राहक रेटिंग के अनुसार सूची (Highest Rating First)
+                        </span>
+                        <span className="bg-amber-500 text-slate-950 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                          {sortedWorkersWithDistance.length} दुकानें
+                        </span>
+                      </div>
 
-                    <div className="grid grid-cols-1 gap-3.5">
-                      {renderWorkerListWithNativeAds(exactVillageWorkers)}
-                    </div>
-                  </div>
-                )}
+                      <motion.div layout className="grid grid-cols-1 gap-3.5">
+                        {renderWorkerListWithNativeAds(sortedWorkersWithDistance)}
+                      </motion.div>
+                    </motion.div>
+                  ) : (
+                    /* DISTANCE PROXIMITY SORTED VIEW: EXACT VILLAGE & SURROUNDING VILLAGES */
+                    <motion.div layout className="flex flex-col gap-5">
+                      {/* --- GROUP 1: EXACT VILLAGE WORKERS (0 km) --- */}
+                      {exactVillageWorkers.length > 0 && (
+                        <motion.div layout className="flex flex-col gap-3">
+                          <div className="bg-emerald-100 border-l-4 border-emerald-600 p-2.5 rounded-r-2xl flex items-center justify-between text-emerald-950 shadow-2xs">
+                            <span className="text-xs sm:text-sm font-black flex items-center gap-1.5">
+                              🎯 आपके गाँव में उपलब्ध सेवा व दुकानें ({activeVillageDisplay} - 0 km)
+                            </span>
+                            <span className="bg-emerald-700 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                              {exactVillageWorkers.length} सेवा / दुकानें उपलब्ध
+                            </span>
+                          </div>
 
-                {/* --- GROUP 2: NEARBY SURROUNDING VILLAGES (2-5 km) --- */}
-                {nearbyVillageWorkers.length > 0 && (
-                  <div className="flex flex-col gap-3 pt-2">
-                    <div className="bg-amber-100/80 border-l-4 border-amber-500 p-2.5 rounded-r-2xl flex items-center justify-between text-amber-950 shadow-2xs">
-                      <span className="text-xs sm:text-sm font-black flex items-center gap-1.5">
-                        📍 नजदीकी आसपास के गाँवों से सेवा व दुकानें (Near 2 - 5 km)
-                      </span>
-                      <span className="bg-amber-500 text-slate-950 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                        {nearbyVillageWorkers.length} सेवा / दुकानें
-                      </span>
-                    </div>
+                          <motion.div layout className="grid grid-cols-1 gap-3.5">
+                            {renderWorkerListWithNativeAds(exactVillageWorkers)}
+                          </motion.div>
+                        </motion.div>
+                      )}
 
-                    <div className="grid grid-cols-1 gap-3.5">
-                      {renderWorkerListWithNativeAds(nearbyVillageWorkers)}
-                    </div>
-                  </div>
-                )}
+                      {/* --- GROUP 2: NEARBY SURROUNDING VILLAGES (2-5 km) --- */}
+                      {nearbyVillageWorkers.length > 0 && (
+                        <motion.div layout className="flex flex-col gap-3 pt-2">
+                          <div className="bg-amber-100/80 border-l-4 border-amber-500 p-2.5 rounded-r-2xl flex items-center justify-between text-amber-950 shadow-2xs">
+                            <span className="text-xs sm:text-sm font-black flex items-center gap-1.5">
+                              📍 नजदीकी आसपास के गाँवों से सेवा व दुकानें (नजदीकी दूरी अनुसार)
+                            </span>
+                            <span className="bg-amber-500 text-slate-950 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                              {nearbyVillageWorkers.length} सेवा / दुकानें
+                            </span>
+                          </div>
+
+                          <motion.div layout className="grid grid-cols-1 gap-3.5">
+                            {renderWorkerListWithNativeAds(nearbyVillageWorkers)}
+                          </motion.div>
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  )}
+                </motion.div>
 
               </div>
             )}
@@ -6283,7 +6425,13 @@ interface NativeAdCardProps {
 
 function NativeAdCard({ ad }: NativeAdCardProps) {
   return (
-    <div className={`p-4 rounded-3xl border-2 transition-all shadow-sm flex flex-col gap-3 relative overflow-hidden ${ad.bgColor} ${ad.borderColor}`}>
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ layout: { type: 'spring', stiffness: 350, damping: 30 }, duration: 0.25 }}
+      className={`p-4 rounded-3xl border-2 transition-all shadow-sm flex flex-col gap-3 relative overflow-hidden ${ad.bgColor} ${ad.borderColor}`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1 border border-amber-300 shadow-2xs">
           <Sparkles className="w-3 h-3 text-slate-950" /> {ad.badgeText}
@@ -6324,7 +6472,7 @@ function NativeAdCard({ ad }: NativeAdCardProps) {
           <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
