@@ -1,0 +1,42 @@
+import fs from 'fs';
+import path from 'path';
+
+// All 28 States and 8 Union Territories with bilingual names
+export const STATES_AND_UTS = [
+  { name: 'Uttar Pradesh', hindi: 'उत्तर प्रदेश' },
+  { name: 'Bihar', hindi: 'बिहार' },
+  { name: 'Madhya Pradesh', hindi: 'मध्य प्रदेश' },
+  { name: 'Rajasthan', hindi: 'राजस्थान' },
+  { name: 'Haryana', hindi: 'हरियाणा' },
+  { name: 'Punjab', hindi: 'पंजाब' },
+  { name: 'Maharashtra', hindi: 'महाराष्ट्र' },
+  { name: 'Delhi', hindi: 'दिल्ली (NCT)' },
+  { name: 'Gujarat', hindi: 'गुजरात' },
+  { name: 'West Bengal', hindi: 'पश्चिम बंगाल' },
+  { name: 'Jharkhand', hindi: 'झारखंड' },
+  { name: 'Chhattisgarh', hindi: 'छत्तीसगढ़' },
+  { name: 'Uttarakhand', hindi: 'उत्तराखंड' },
+  { name: 'Himachal Pradesh', hindi: 'हिमाचल प्रदेश' },
+  { name: 'Jammu and Kashmir', hindi: 'जम्मू और कश्मीर' },
+  { name: 'Odisha', hindi: 'ओडिशा' },
+  { name: 'Assam', hindi: 'असम' },
+  { name: 'Karnataka', hindi: 'कर्नाटक' },
+  { name: 'Tamil Nadu', hindi: 'तमिलनाडु' },
+  { name: 'Telangana', hindi: 'तेलंगाना' },
+  { name: 'Andhra Pradesh', hindi: 'आंध्र प्रदेश' },
+  { name: 'Kerala', hindi: 'केरल' },
+  { name: 'Goa', hindi: 'गोवा' },
+  { name: 'Tripura', hindi: 'त्रिपुरा' },
+  { name: 'Meghalaya', hindi: 'मेघालय' },
+  { name: 'Manipur', hindi: 'मणिपुर' },
+  { name: 'Nagaland', hindi: 'नागालैंड' },
+  { name: 'Mizoram', hindi: 'मिज़ोरम' },
+  { name: 'Arunachal Pradesh', hindi: 'अरुणाचल प्रदेश' },
+  { name: 'Sikkim', hindi: 'सिक्किम' },
+  { name: 'Chandigarh', hindi: 'चंडीगढ़' },
+  { name: 'Dadra and Nagar Haveli and Daman and Diu', hindi: 'दादरा व नगर हवेली और दमन व दीव' },
+  { name: 'Ladakh', hindi: 'लद्दाख' },
+  { name: 'Puducherry', hindi: 'पुडुचेरी' },
+  { name: 'Andaman and Nicobar Islands', hindi: 'अंडमान और निकोबार द्वीप समूह' },
+  { name: 'Lakshadweep', hindi: 'लक्षद्वीप' }
+];
