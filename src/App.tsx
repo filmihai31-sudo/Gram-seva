@@ -1381,18 +1381,50 @@ export default function App() {
   // Firebase DB vs LocalStorage Mode Toggle (Default: Cloud DB active in production)
   const [useCloudDb, setUseCloudDb] = useState<boolean>(true);
 
-  // Workers List State
-  const [workers, setWorkers] = useState<WorkerService[]>(() => {
-    const saved = localStorage.getItem('gramseva_workers');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_SEED_WORKERS;
-      }
+  // Helper to load and merge persistent workers from LocalStorage
+  const loadPersistentWorkers = (): WorkerService[] => {
+    let savedList: WorkerService[] = [];
+    let customList: WorkerService[] = [];
+
+    try {
+      const rawSaved = localStorage.getItem('gramseva_workers');
+      if (rawSaved) savedList = JSON.parse(rawSaved);
+    } catch (e) {
+      console.warn('Failed to parse gramseva_workers from localStorage:', e);
     }
-    return INITIAL_SEED_WORKERS;
-  });
+
+    try {
+      const rawCustom = localStorage.getItem('gramseva_user_created_workers');
+      if (rawCustom) customList = JSON.parse(rawCustom);
+    } catch (e) {
+      console.warn('Failed to parse gramseva_user_created_workers:', e);
+    }
+
+    // Merge strategy: Initial seed workers < Saved workers < User created / modified workers
+    const workerMap = new Map<string, WorkerService>();
+
+    // 1. Seed base initial data
+    INITIAL_SEED_WORKERS.forEach((w) => workerMap.set(w.id, w));
+
+    // 2. Overlay any previously saved workers
+    if (Array.isArray(savedList)) {
+      savedList.forEach((w) => {
+        if (w && w.id) workerMap.set(w.id, w);
+      });
+    }
+
+    // 3. Ensure all user-created shops are preserved at the top
+    if (Array.isArray(customList)) {
+      customList.forEach((w) => {
+        if (w && w.id) workerMap.set(w.id, w);
+      });
+    }
+
+    return Array.from(workerMap.values());
+  };
+
+  // Workers List State
+  const [workers, setWorkers] = useState<WorkerService[]>(() => loadPersistentWorkers());
 
   // Loading indicator for Cloud Sync
   const [isCloudLoading, setIsCloudLoading] = useState<boolean>(false);
@@ -1692,10 +1724,17 @@ export default function App() {
     }
   }, [masterCategories]);
 
-  // Persist workers to local storage
+  // Persist workers to local storage and user-created custom shops
   useEffect(() => {
     try {
       localStorage.setItem('gramseva_workers', JSON.stringify(workers));
+      
+      // Also extract and keep user-created shops in a dedicated permanent key
+      const initialIds = new Set(INITIAL_SEED_WORKERS.map((w) => w.id));
+      const userCustomShops = workers.filter((w) => !initialIds.has(w.id) || w.id.startsWith('worker_') || w.id.startsWith('shop_'));
+      if (userCustomShops.length > 0) {
+        localStorage.setItem('gramseva_user_created_workers', JSON.stringify(userCustomShops));
+      }
     } catch (e) {
       console.warn("Could not sync workers to localStorage:", e);
     }
@@ -1723,11 +1762,33 @@ export default function App() {
       setIsCloudLoading(true);
       setCloudStatusMsg('Cloud से कनेक्ट हो रहा है...');
       
-      // Fetch Workers
+      // Fetch Workers with Safe Merge Strategy (Never wipe local user shops)
       fetchWorkersFromFirestore()
         .then((cloudData) => {
           if (cloudData && cloudData.length > 0) {
-            setWorkers(cloudData);
+            setWorkers((current) => {
+              const cloudIds = new Set(cloudData.map((w) => w.id));
+              // Retain any local user created shops not yet present in Firestore
+              const localOnlyShops = current.filter((w) => !cloudIds.has(w.id));
+              
+              // Also check localStorage
+              let customSaved: WorkerService[] = [];
+              try {
+                const raw = localStorage.getItem('gramseva_user_created_workers');
+                if (raw) customSaved = JSON.parse(raw);
+              } catch (e) {}
+
+              const mergedMap = new Map<string, WorkerService>();
+              
+              // 1. Add cloud data
+              cloudData.forEach((w) => mergedMap.set(w.id, w));
+              
+              // 2. Overlay user custom shops
+              customSaved.forEach((w) => mergedMap.set(w.id, w));
+              localOnlyShops.forEach((w) => mergedMap.set(w.id, w));
+
+              return Array.from(mergedMap.values());
+            });
             setCloudStatusMsg('✅ Cloud Live Sync Active');
           } else {
             setCloudStatusMsg('✅ Cloud Connected (Fallback Initial Data)');
@@ -2958,7 +3019,23 @@ export default function App() {
       securityAnswer: newWorker.securityAnswer.trim() || '1234'
     };
 
-    setWorkers((prev) => [created, ...prev]);
+    setWorkers((prev) => {
+      const updated = [created, ...prev];
+      try {
+        localStorage.setItem('gramseva_workers', JSON.stringify(updated));
+        
+        let customSaved: WorkerService[] = [];
+        const rawCustom = localStorage.getItem('gramseva_user_created_workers');
+        if (rawCustom) {
+          try { customSaved = JSON.parse(rawCustom); } catch (e) {}
+        }
+        const updatedCustom = [created, ...customSaved.filter((w) => w.id !== created.id)];
+        localStorage.setItem('gramseva_user_created_workers', JSON.stringify(updatedCustom));
+      } catch (e) {
+        console.warn('Failed to immediately persist new worker to localStorage:', e);
+      }
+      return updated;
+    });
 
     // Save Custom Location Request to master_locations if 'other' was chosen
     if (addShopState === 'other' || addShopDistrict === 'other' || addShopVillage === 'other') {
