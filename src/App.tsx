@@ -98,7 +98,9 @@ import {
   TrendingUp,
   ChevronUp,
   Edit3,
-  Save
+  Save,
+  ZoomIn,
+  Maximize2
 } from 'lucide-react';
 import { MapPicker, SingleShopMapView, MultiShopMapView, ShopPinItem } from './components/LeafletMap';
 import { VisitingCardModal } from './components/VisitingCardModal';
@@ -1560,6 +1562,8 @@ export default function App() {
   const [ownerBioInput, setOwnerBioInput] = useState<string>('');
   const [ownerBioSavedToast, setOwnerBioSavedToast] = useState<string | null>(null);
   const [isCompressingOwnerPhoto, setIsCompressingOwnerPhoto] = useState<boolean>(false);
+  const [lightboxPhotoUrl, setLightboxPhotoUrl] = useState<string | null>(null);
+  const [lightboxPhotoTitle, setLightboxPhotoTitle] = useState<string>('');
   const [compressionStats, setCompressionStats] = useState<{
     originalKb: number;
     compressedKb: number;
@@ -2328,6 +2332,7 @@ export default function App() {
       setIsCompressingOwnerPhoto(true);
       setCompressionStats(null);
 
+      // Silent high-res auto compression (~200-300KB)
       const result = await compressImageFile(file, 1000, 0.75);
 
       setCompressionStats({
@@ -2349,6 +2354,11 @@ export default function App() {
           return w;
         })
       );
+
+      // If lightbox preview is open, update it in real time
+      if (lightboxPhotoUrl) {
+        setLightboxPhotoUrl(result.dataUrl);
+      }
 
       setIsCompressingOwnerPhoto(false);
       setOwnerBioSavedToast('📸 नई प्रोफाइल फोटो सफलतापूर्वक अपडेट हो गई!');
@@ -3066,6 +3076,10 @@ export default function App() {
           onToggleFavorite={handleToggleFavorite}
           onVoiceRead={speakText}
           onRateWorker={handleRateWorker}
+          onOpenLightbox={(url, title) => {
+            setLightboxPhotoUrl(url);
+            setLightboxPhotoTitle(title);
+          }}
           onViewMap={(w) => {
             setSelectedShopForMap(w);
             setIsSingleShopMapOpen(true);
@@ -6452,19 +6466,36 @@ export default function App() {
               {/* Modal Header */}
               <div className="flex items-start justify-between border-b border-slate-100 pb-3 gap-3">
                 <div className="flex items-start gap-3">
-                  {/* Avatar with Camera Overlay Trigger */}
+                  {/* Avatar with Clickable Lightbox & Camera Overlay Trigger */}
                   <div className="relative group shrink-0">
-                    <img
-                      src={loggedInWorker.avatarUrl}
-                      alt={loggedInWorker.name}
-                      className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-500 shadow-md bg-slate-100"
-                    />
                     <button
                       type="button"
-                      onClick={() => ownerPhotoInputRef.current?.click()}
+                      onClick={() => {
+                        setLightboxPhotoUrl(loggedInWorker.avatarUrl);
+                        setLightboxPhotoTitle(loggedInWorker.shopName || loggedInWorker.name);
+                      }}
+                      className="relative block rounded-2xl overflow-hidden cursor-pointer group/avatar focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      title="बड़ी फोटो देखें (Click to view full photo)"
+                    >
+                      <img
+                        src={loggedInWorker.avatarUrl}
+                        alt={loggedInWorker.name}
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-500 shadow-md bg-slate-100 group-hover/avatar:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity rounded-2xl">
+                        <ZoomIn className="w-5 h-5 text-white drop-shadow-md" />
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        ownerPhotoInputRef.current?.click();
+                      }}
                       disabled={isCompressingOwnerPhoto}
-                      className="absolute -bottom-1 -right-1 p-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl shadow-md border-2 border-white transition-all cursor-pointer"
-                      title="फोटो बदलें (Change Photo)"
+                      className="absolute -bottom-1 -right-1 p-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl shadow-md border-2 border-white transition-all cursor-pointer z-10"
+                      title="कैमरा / गैलरी से फोटो बदलें (Change Photo)"
                     >
                       {isCompressingOwnerPhoto ? (
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -6474,7 +6505,7 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* Hidden Input for Instant Client-Side Photo Upload */}
+                  {/* Hidden Input for Direct Camera/Gallery Photo Upload */}
                   <input
                     ref={ownerPhotoInputRef}
                     type="file"
@@ -6525,92 +6556,45 @@ export default function App() {
                 </button>
               </div>
 
-              {/* 1. LIVE SHOP PROFILE VIEWS COUNTER & ENGAGEMENT CARD */}
-              <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-teal-950 text-white p-4 rounded-3xl border-2 border-emerald-400/80 shadow-lg relative overflow-hidden flex flex-col gap-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-emerald-500/20 border border-emerald-400/40 rounded-xl text-amber-300">
+              {/* 1. LIVE SHOP PROFILE VIEWS COUNTER & ENGAGEMENT CARD (FIXED CSS & FULL VISIBILITY) */}
+              <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 text-white p-4 sm:p-5 rounded-3xl border-2 border-emerald-400/90 shadow-xl relative overflow-hidden flex flex-col gap-3">
+                {/* Ambient glow effects */}
+                <div className="absolute -right-6 -top-6 w-32 h-32 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute -left-6 -bottom-6 w-32 h-32 bg-teal-500/15 rounded-full blur-2xl pointer-events-none" />
+
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-emerald-500/20 border border-emerald-400/40 rounded-2xl text-amber-300 shrink-0 shadow-inner">
                       <Eye className="w-5 h-5 text-amber-300" />
                     </div>
                     <div>
-                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-300 flex items-center gap-1">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1.5 mb-0.5">
                         <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> लाइव प्रोफाइल एनालिटिक्स
                       </span>
-                      <h4 className="text-sm sm:text-base font-black text-white">
-                        👁️ आपकी दुकान को <span className="text-amber-300 font-black text-lg underline decoration-amber-400">{loggedInWorker.viewsCount || 148}</span> लोगों ने देखा
+                      <h4 className="text-sm sm:text-base font-black text-white leading-snug">
+                        आपकी दुकान को <span className="text-amber-300 font-black text-lg underline decoration-amber-400 decoration-2">{loggedInWorker.viewsCount || 148}</span> लोगों ने देखा
                       </h4>
                     </div>
                   </div>
 
-                  <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 font-black text-[10px] px-2.5 py-1 rounded-full whitespace-nowrap hidden sm:inline-flex">
+                  <span className="self-start sm:self-center bg-amber-400/20 text-amber-300 border border-amber-400/40 font-black text-[10px] px-3 py-1 rounded-full whitespace-nowrap">
                     🔥 लोकप्रिय प्रोफाइल
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-800/60 text-xs">
-                  <div className="bg-white/5 p-2 rounded-xl border border-white/10 flex items-center justify-between">
-                    <span className="text-slate-300 text-[11px]">ग्राहक रेटिंग:</span>
-                    <span className="font-black text-amber-300">⭐ {loggedInWorker.rating} ({loggedInWorker.reviewsCount || 0})</span>
+                <div className="relative z-10 grid grid-cols-2 gap-2.5 pt-2.5 border-t border-emerald-800/60 text-xs">
+                  <div className="bg-white/10 p-2.5 rounded-2xl border border-white/15 flex items-center justify-between">
+                    <span className="text-slate-300 text-[11px] font-bold">ग्राहक रेटिंग:</span>
+                    <span className="font-black text-amber-300 text-xs sm:text-sm">⭐ {loggedInWorker.rating} ({loggedInWorker.reviewsCount || 0})</span>
                   </div>
-                  <div className="bg-white/5 p-2 rounded-xl border border-white/10 flex items-center justify-between">
-                    <span className="text-slate-300 text-[11px]">काम का अनुभव:</span>
-                    <span className="font-black text-emerald-300">{loggedInWorker.experienceYears} वर्ष</span>
+                  <div className="bg-white/10 p-2.5 rounded-2xl border border-white/15 flex items-center justify-between">
+                    <span className="text-slate-300 text-[11px] font-bold">काम का अनुभव:</span>
+                    <span className="font-black text-emerald-300 text-xs sm:text-sm">{loggedInWorker.experienceYears} वर्ष</span>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-300 leading-relaxed bg-emerald-950/60 p-2.5 rounded-xl border border-emerald-700/50">
-                  💡 <span className="font-bold text-amber-200">सुझाव:</span> अपना डिजिटल विजिटिंग कार्ड व्हाट्सएप ग्रुप्स और ग्रामवासियों को शेयर करें ताकि और नए ग्राहक आपसे सीधे संपर्क कर सकें।
-                </p>
-              </div>
-
-              {/* 2. PHOTO UPLOAD & CANVAS COMPRESSION SECTION */}
-              <div className="bg-slate-50 border-2 border-slate-200 p-4 rounded-3xl flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Camera className="w-4 h-4 text-emerald-700" />
-                    <h4 className="text-xs sm:text-sm font-black text-slate-900">
-                      📸 प्रोफाइल व दुकान की फोटो (Photo Upload)
-                    </h4>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
-                    ⚡ ऑटो कंप्रेसर सक्रिय
-                  </span>
-                </div>
-
-                {compressionStats && (
-                  <div className="p-2.5 bg-emerald-50 text-emerald-900 border border-emerald-300 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in">
-                    <span className="flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{compressionStats.originalKb} KB → <span className="font-black text-emerald-800">{compressionStats.compressedKb} KB</span> ({compressionStats.percentSaved}% डेटा बचत)</span>
-                    </span>
-                    <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-md font-extrabold">
-                      क्रिस्प क्वालिटी HD
-                    </span>
-                  </div>
-                )}
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => ownerPhotoInputRef.current?.click()}
-                    disabled={isCompressingOwnerPhoto}
-                    className="w-full sm:w-auto flex-1 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white font-black text-xs rounded-2xl shadow-sm border border-emerald-800 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-                  >
-                    {isCompressingOwnerPhoto ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
-                        <span>फोटो कंप्रेस व अपलोड हो रही है...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4 text-amber-300" />
-                        <span>गैलरी / कैमरा से नई फोटो चुनें</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-500 font-medium">
-                  * 5-10MB तक की बड़ी फोटो स्वतः क्रिस्प 200-300KB में कंप्रेस होकर तुरंत सेव हो जाती है।
+                <p className="relative z-10 text-[11px] text-slate-200 leading-relaxed bg-emerald-950/70 p-3 rounded-2xl border border-emerald-700/60">
+                  💡 <span className="font-bold text-amber-300">सुझाव:</span> अपना डिजिटल विजिटिंग कार्ड व्हाट्सएप ग्रुप्स और ग्रामवासियों को शेयर करें ताकि और नए ग्राहक आपसे सीधे संपर्क कर सकें।
                 </p>
               </div>
 
@@ -7095,6 +7079,86 @@ export default function App() {
         />
       )}
 
+      {/* ==================== FULL-SCREEN LIGHTBOX PHOTO PREVIEW MODAL ==================== */}
+      {lightboxPhotoUrl && (
+        <div
+          onClick={() => setLightboxPhotoUrl(null)}
+          className="fixed inset-0 z-70 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-lg w-full bg-slate-900 border-2 border-emerald-400 rounded-3xl p-4 shadow-2xl flex flex-col gap-3 animate-in zoom-in-95 duration-150"
+          >
+            {/* Lightbox Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                  <Camera className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-white truncate max-w-[220px] sm:max-w-xs">
+                    {lightboxPhotoTitle || 'प्रोफाइल फोटो'}
+                  </h4>
+                  <p className="text-[10px] text-emerald-400 font-bold">HD फोटो प्रीव्यू</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setLightboxPhotoUrl(null)}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
+                title="बंद करें (Close)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Image Container */}
+            <div className="flex items-center justify-center overflow-hidden rounded-2xl bg-black/60 border border-slate-800 max-h-[65vh] p-1">
+              <img
+                src={lightboxPhotoUrl}
+                alt={lightboxPhotoTitle || 'Photo'}
+                className="w-full h-auto max-h-[60vh] object-contain rounded-xl shadow-lg"
+              />
+            </div>
+
+            {/* Lightbox Footer Actions */}
+            <div className="flex items-center gap-2 pt-1">
+              {loggedInWorker && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    ownerPhotoInputRef.current?.click();
+                  }}
+                  disabled={isCompressingOwnerPhoto}
+                  className="flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black text-xs rounded-xl shadow-sm border border-emerald-500 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                >
+                  {isCompressingOwnerPhoto ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                      <span>अपलोड हो रही है...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-4 h-4 text-amber-300" />
+                      <span>कैमरा / गैलरी से फोटो बदलें</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setLightboxPhotoUrl(null)}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                बंद करें
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -7168,10 +7232,11 @@ interface WorkerCardProps {
   onToggleFavorite: (workerId: string) => void;
   onVoiceRead: (text: string) => void;
   onRateWorker: (workerId: string, ratingStars: number, selectedTags: string[]) => void;
+  onOpenLightbox?: (photoUrl: string, title: string) => void;
   onViewMap?: (worker: WorkerService) => void;
 }
 
-function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateWorker, onViewMap }: WorkerCardProps) {
+function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateWorker, onOpenLightbox, onViewMap }: WorkerCardProps) {
   const whatsappMsg = `नमस्ते ${worker.hindiName}, मुझे गाँव में काम करवाना है। क्या आप उपलब्ध हैं?`;
   const whatsappUrl = `https://wa.me/${worker.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(whatsappMsg)}`;
 
@@ -7328,12 +7393,26 @@ function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateW
 
       {/* Main Info Row */}
       <div className="flex items-start gap-3">
-        {/* Avatar */}
-        <img
-          src={worker.avatarUrl}
-          alt={worker.name}
-          className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border-2 border-slate-200 shadow-2xs shrink-0 bg-slate-100"
-        />
+        {/* Avatar with Clickable Lightbox */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onOpenLightbox) {
+              onOpenLightbox(worker.avatarUrl, worker.shopName ? `🏪 ${worker.shopName}` : (worker.hindiName || worker.name));
+            }
+          }}
+          className="relative group/avatar cursor-pointer rounded-2xl overflow-hidden shrink-0 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          title="बड़ी फोटो देखें (Click to view full photo)"
+        >
+          <img
+            src={worker.avatarUrl}
+            alt={worker.name}
+            className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl object-cover border-2 border-slate-200 shadow-2xs group-hover/avatar:scale-105 transition-transform bg-slate-100"
+          />
+          <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity rounded-2xl">
+            <ZoomIn className="w-5 h-5 text-white drop-shadow-md" />
+          </div>
+        </button>
 
         {/* Worker Details */}
         <div className="flex-1 min-w-0">
