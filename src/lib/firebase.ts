@@ -304,6 +304,17 @@ export async function saveMasterLocationToFirestore(location: Omit<MasterLocatio
   return docRef.id;
 }
 
+// Update master location full details in Firestore
+export async function updateMasterLocationInFirestore(id: string, updates: Partial<Omit<MasterLocation, 'id'>>): Promise<void> {
+  if (!db) return;
+  try {
+    const docRef = doc(db, 'master_locations', id);
+    await updateDoc(docRef, updates);
+  } catch (e) {
+    console.warn("Could not update location in firestore:", e);
+  }
+}
+
 // Update master location status in Firestore
 export async function updateMasterLocationStatusInFirestore(id: string, status: 'approved' | 'pending_approval'): Promise<void> {
   if (!db) return;

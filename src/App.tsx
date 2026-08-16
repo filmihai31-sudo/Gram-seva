@@ -93,11 +93,18 @@ import {
   Shirt,
   Footprints,
   Cog,
-  CookingPot
+  CookingPot,
+  Upload,
+  TrendingUp,
+  ChevronUp,
+  Edit3,
+  Save
 } from 'lucide-react';
 import { MapPicker, SingleShopMapView, MultiShopMapView, ShopPinItem } from './components/LeafletMap';
 import { VisitingCardModal } from './components/VisitingCardModal';
 import { InstallButton, InstallBanner } from './components/InstallButton';
+import { compressImageFile } from './utils/imageCompression';
+import { getProfessionBadge } from './utils/professionBadges';
 import {
   fetchWorkersFromFirestore,
   saveWorkerToFirestore,
@@ -109,6 +116,7 @@ import {
   fetchMasterCategoriesFromFirestore,
   saveMasterLocationToFirestore,
   saveMasterCategoryToFirestore,
+  updateMasterLocationInFirestore,
   updateMasterLocationStatusInFirestore,
   updateMasterCategoryStatusInFirestore,
   deleteMasterLocationFromFirestore,
@@ -325,6 +333,8 @@ const INITIAL_SEED_WORKERS: WorkerService[] = [
     lat: 28.7512,
     lng: 77.4215,
     reviewsCount: 38,
+    viewsCount: 342,
+    bio: 'गाँव व आसपास के क्षेत्र में 12+ वर्षों से समर्पित स्वास्थ्य सेवा। प्राथमिक उपचार, ब्लड प्रेशर, शुगर जांच व आपातकालीन परामर्श सेवा उपलब्ध।',
     userTags: ['अनुभवी डॉक्टर', '24 घंटे सेवा', 'सही इलाज']
   },
   {
@@ -352,6 +362,8 @@ const INITIAL_SEED_WORKERS: WorkerService[] = [
     lat: 28.7525,
     lng: 77.4230,
     reviewsCount: 29,
+    viewsCount: 512,
+    bio: 'इफको व कृभको प्रमाणित उत्तम खाद, बीज व कीटनाशक दवाइयां। किसानों के लिए मुफ्त फसल परामर्श व समय पर डिलीवरी।',
     userTags: ['असली बीज', 'सही दाम', 'किसान मित्र']
   },
   {
@@ -379,6 +391,8 @@ const INITIAL_SEED_WORKERS: WorkerService[] = [
     lat: 28.7450,
     lng: 77.4100,
     reviewsCount: 22,
+    viewsCount: 280,
+    bio: 'अवल श्रेणी लाल ईंटें, अल्ट्राटेक/एसीसी सीमेंट, क्रेसर रोड़ी, रेती व डस्ट की सीधी ट्रॉली व डंपर डिलीवरी। उचित नाप-तौल व पक्का बिल।',
     userTags: ['होम डिलीवरी', 'पक्का माल', 'सही वजन']
   },
   {
@@ -406,6 +420,8 @@ const INITIAL_SEED_WORKERS: WorkerService[] = [
     lat: 28.7300,
     lng: 77.4000,
     reviewsCount: 16,
+    viewsCount: 420,
+    bio: 'बार काउंसिल पंजीकृत सीनियर अधिवक्ता। बैनामा, रजिस्ट्री, दाखिल-खारिज, वसीयतनामा, पारिवारिक मामले व तहसील न्यायालय विधिक परामर्श।',
     userTags: ['सच्ची सलाह', 'अनुभवी वकील']
   },
   {
@@ -433,6 +449,8 @@ const INITIAL_SEED_WORKERS: WorkerService[] = [
     lat: 28.7508,
     lng: 77.4220,
     reviewsCount: 45,
+    viewsCount: 685,
+    bio: 'शुद्ध व ताजे मसाले, दालें, देशी घी, पूजा का सामान व दैनिक राशन सामग्री। पूरे गाँव में घर बैठे व्हाट्सएप ऑर्डर पर होम डिलीवरी।',
     userTags: ['उचित मूल्य', 'ताजा राशन']
   },
   {
@@ -1395,6 +1413,7 @@ export default function App() {
     charges: 'उचित दर / सलाह फ़ीस',
     experienceYears: 5,
     skills: '',
+    bio: '',
     password: '',
     securityQuestion: '4-अंकों का सीक्रेट पिन / 4-Digit Security PIN',
     securityAnswer: ''
@@ -1512,6 +1531,13 @@ export default function App() {
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState<boolean>(false);
   const [adminWorkerSearch, setAdminWorkerSearch] = useState<string>('');
 
+  // --- ADMIN LOCATION MANAGEMENT (CRUD MODAL) STATES ---
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+  const [editingLocation, setEditingLocation] = useState<MasterLocation | null>(null);
+  const [locationFormState, setLocationFormState] = useState<string>('');
+  const [locationFormDistrict, setLocationFormDistrict] = useState<string>('');
+  const [locationFormVillage, setLocationFormVillage] = useState<string>('');
+
   // --- FEATURE: Merchant Login, Forgot Password & Merchant Dashboard States ---
   const [isMerchantLoginOpen, setIsMerchantLoginOpen] = useState<boolean>(false);
   const [merchantMobileInput, setMerchantMobileInput] = useState<string>('');
@@ -1524,10 +1550,29 @@ export default function App() {
 
   const [isMerchantDashboardOpen, setIsMerchantDashboardOpen] = useState<boolean>(false);
   const [isMerchantCardOpen, setIsMerchantCardOpen] = useState<boolean>(false);
+  const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState<boolean>(false);
   const [changeCurrentPassword, setChangeCurrentPassword] = useState<string>('');
   const [changeNewPassword, setChangeNewPassword] = useState<string>('');
   const [changeConfirmPassword, setChangeConfirmPassword] = useState<string>('');
   const [passwordChangeMsg, setPasswordChangeMsg] = useState<string | null>(null);
+
+  // Merchant Profile Bio & Photo Upload States
+  const [ownerBioInput, setOwnerBioInput] = useState<string>('');
+  const [ownerBioSavedToast, setOwnerBioSavedToast] = useState<string | null>(null);
+  const [isCompressingOwnerPhoto, setIsCompressingOwnerPhoto] = useState<boolean>(false);
+  const [compressionStats, setCompressionStats] = useState<{
+    originalKb: number;
+    compressedKb: number;
+    percentSaved: number;
+  } | null>(null);
+  const ownerPhotoInputRef = useRef<HTMLInputElement>(null);
+  const newWorkerPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [isCompressingNewWorkerPhoto, setIsCompressingNewWorkerPhoto] = useState<boolean>(false);
+  const [newWorkerCompressionStats, setNewWorkerCompressionStats] = useState<{
+    originalKb: number;
+    compressedKb: number;
+    percentSaved: number;
+  } | null>(null);
 
   // Forgot Password Security Question & Zero-Cost Reset States
   const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState<boolean>(false);
@@ -1618,6 +1663,13 @@ export default function App() {
     if (!loggedInWorkerId) return null;
     return workers.find((w) => w.id === loggedInWorkerId) || null;
   }, [workers, loggedInWorkerId]);
+
+  // Sync owner bio state when logged in merchant is updated or opened
+  useEffect(() => {
+    if (loggedInWorker) {
+      setOwnerBioInput(loggedInWorker.bio || '');
+    }
+  }, [loggedInWorker?.id, loggedInWorker?.bio]);
 
   // Sync masterLocations & masterCategories to localStorage
   useEffect(() => {
@@ -1716,10 +1768,10 @@ export default function App() {
     localStorage.setItem('gramseva_voice_enabled', String(isVoiceEnabled));
   }, [selectedState, selectedDistrict, selectedVillage, isManualVillage, manualVillageName, useCloudDb, isVoiceEnabled]);
 
-  // Handle Deep Link to Shop Profile (?shop=WORKER_ID or ?id=WORKER_ID)
+  // Handle Deep Link to Shop Profile (?shopId=WORKER_ID or ?shop=WORKER_ID or ?id=WORKER_ID)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const targetShopId = params.get('shop') || params.get('id');
+    const targetShopId = params.get('shopId') || params.get('shop') || params.get('id');
 
     if (targetShopId && workers.length > 0) {
       const matchedWorker = workers.find((w) => w.id === targetShopId);
@@ -2232,6 +2284,114 @@ export default function App() {
     alert('🎉 आपका नया पासवर्ड सफलतापूर्वक सेव हो गया है!');
   };
 
+  // --- SHOP VIEW COUNTER INCREMENT ---
+  const incrementShopViews = (workerId: string) => {
+    setWorkers((prev) =>
+      prev.map((w) => {
+        if (w.id === workerId) {
+          const currentViews = w.viewsCount || 140;
+          return { ...w, viewsCount: currentViews + 1 };
+        }
+        return w;
+      })
+    );
+  };
+
+  // --- SAVE BUSINESS OWNER BIO / SERVICES DETAIL ---
+  const handleSaveOwnerBio = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!loggedInWorker) return;
+
+    const trimmedBio = ownerBioInput.trim();
+
+    setWorkers((prev) =>
+      prev.map((w) => {
+        if (w.id === loggedInWorker.id) {
+          return { ...w, bio: trimmedBio };
+        }
+        return w;
+      })
+    );
+
+    setOwnerBioSavedToast('✅ दुकान व सेवा विवरण सफलतापूर्वक अपडेट हो गया!');
+    setTimeout(() => {
+      setOwnerBioSavedToast(null);
+    }, 3500);
+  };
+
+  // --- CLIENT-SIDE PHOTO UPLOAD WITH HIGH RES COMPRESSION (MERCHANT PROFILE) ---
+  const handleOwnerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !loggedInWorker) return;
+
+    try {
+      setIsCompressingOwnerPhoto(true);
+      setCompressionStats(null);
+
+      const result = await compressImageFile(file, 1000, 0.75);
+
+      setCompressionStats({
+        originalKb: result.originalSizeKb,
+        compressedKb: result.compressedSizeKb,
+        percentSaved: result.percentSaved
+      });
+
+      // Update worker photo in state & persistent storage
+      setWorkers((prev) =>
+        prev.map((w) => {
+          if (w.id === loggedInWorker.id) {
+            return {
+              ...w,
+              avatarUrl: result.dataUrl,
+              documentPhotoUrl: result.dataUrl
+            };
+          }
+          return w;
+        })
+      );
+
+      setIsCompressingOwnerPhoto(false);
+      setOwnerBioSavedToast('📸 नई प्रोफाइल फोटो सफलतापूर्वक अपडेट हो गई!');
+      setTimeout(() => {
+        setOwnerBioSavedToast(null);
+      }, 4000);
+    } catch (err) {
+      console.error('Error compressing image:', err);
+      setIsCompressingOwnerPhoto(false);
+      alert('फोटो प्रोसेस करने में समस्या हुई। कृपया दूसरी फोटो चुनें।');
+    }
+  };
+
+  // --- CLIENT-SIDE PHOTO UPLOAD WITH COMPRESSION (NEW WORKER REGISTRATION) ---
+  const handleNewWorkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsCompressingNewWorkerPhoto(true);
+      setNewWorkerCompressionStats(null);
+
+      const result = await compressImageFile(file, 1000, 0.75);
+
+      setNewWorkerCompressionStats({
+        originalKb: result.originalSizeKb,
+        compressedKb: result.compressedSizeKb,
+        percentSaved: result.percentSaved
+      });
+
+      setNewWorker((prev) => ({
+        ...prev,
+        documentPhotoUrl: result.dataUrl
+      }));
+
+      setIsCompressingNewWorkerPhoto(false);
+    } catch (err) {
+      console.error('Error compressing registration photo:', err);
+      setIsCompressingNewWorkerPhoto(false);
+      alert('फोटो कंप्रेस करने में समस्या हुई। कृपया पुनः प्रयास करें।');
+    }
+  };
+
   // --- MERCHANT LOGOUT ---
   const handleMerchantLogout = () => {
     setLoggedInWorkerId(null);
@@ -2263,6 +2423,86 @@ export default function App() {
   };
 
   // --- ADMIN MASTER LOCATION & CATEGORY HANDLERS ---
+  const handleOpenAddLocationModal = () => {
+    setEditingLocation(null);
+    setLocationFormState(selectedState || ALL_INDIAN_STATES_AND_UTS[0]);
+    const availableDists = getDistrictsForState(selectedState || ALL_INDIAN_STATES_AND_UTS[0]);
+    setLocationFormDistrict(availableDists[0] || '');
+    setLocationFormVillage('');
+    setIsLocationModalOpen(true);
+  };
+
+  const handleOpenEditLocationModal = (loc: MasterLocation) => {
+    setEditingLocation(loc);
+    setLocationFormState(loc.state);
+    setLocationFormDistrict(loc.district);
+    setLocationFormVillage(loc.village);
+    setIsLocationModalOpen(true);
+  };
+
+  const handleSaveLocationModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanState = locationFormState.trim();
+    const cleanDistrict = locationFormDistrict.trim();
+    const cleanVillage = locationFormVillage.trim();
+
+    if (!cleanState || !cleanDistrict || !cleanVillage) {
+      alert('कृपया राज्य, जिला और गाँव तीनों फ़ील्ड भरें!');
+      return;
+    }
+
+    if (editingLocation) {
+      // Update existing location
+      setMasterLocations((prev) =>
+        prev.map((l) =>
+          l.id === editingLocation.id
+            ? { ...l, state: cleanState, district: cleanDistrict, village: cleanVillage }
+            : l
+        )
+      );
+
+      if (useCloudDb && isFirebaseInitialized) {
+        await updateMasterLocationInFirestore(editingLocation.id, {
+          state: cleanState,
+          district: cleanDistrict,
+          village: cleanVillage,
+          status: editingLocation.status
+        });
+      }
+      alert('✅ लोकेशन सफलतापूर्वक अपडेट कर दी गई!');
+    } else {
+      // Add new location (directly approved as admin created it)
+      const newLoc: MasterLocation = {
+        id: `loc_${Date.now()}`,
+        state: cleanState,
+        district: cleanDistrict,
+        village: cleanVillage,
+        status: 'approved',
+        createdAt: new Date().toISOString()
+      };
+
+      setMasterLocations((prev) => [newLoc, ...prev]);
+
+      if (useCloudDb && isFirebaseInitialized) {
+        try {
+          const docId = await saveMasterLocationToFirestore({
+            state: cleanState,
+            district: cleanDistrict,
+            village: cleanVillage,
+            status: 'approved'
+          });
+          newLoc.id = docId;
+        } catch (err) {
+          console.warn('Could not save master location to firestore:', err);
+        }
+      }
+      alert('✅ नई लोकेशन सफलतापूर्वक जोड़ दी गई और लाइव कर दी गई!');
+    }
+
+    setIsLocationModalOpen(false);
+    setEditingLocation(null);
+  };
+
   const handleApproveMasterLocation = async (id: string) => {
     setMasterLocations((prev) =>
       prev.map((l) => (l.id === id ? { ...l, status: 'approved' as const } : l))
@@ -2694,11 +2934,13 @@ export default function App() {
       verificationStatus: 'pending', // Default pending until admin approves
       idNumber: newWorker.idNumber.trim() || '12-अंक आधार दर्ज',
       documentPhotoUrl: newWorker.documentPhotoUrl.trim() || 'https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?w=300&auto=format&fit=crop&q=80',
-      avatarUrl: newWorker.documentPhotoUrl.trim() || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(newWorker.name.trim())}`,
+      avatarUrl: newWorker.documentPhotoUrl.trim() || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       charges: newWorker.charges.trim() || 'उचित मूल्य / फ़ीस',
       skills: newWorker.skills ? newWorker.skills.split(',').map((s) => s.trim()) : [categoryLabel, 'स्थानीय सेवा'],
       mapAddress: `${finalVillage}, ${finalDistrict}`,
       reviewsCount: 1,
+      viewsCount: 1,
+      bio: newWorker.bio?.trim() || undefined,
       userTags: ['नया प्रोफाइल', 'समीक्षाधीन'],
       submittedAt: Date.now(),
       password: newWorker.password.trim() || '123456',
@@ -5032,74 +5274,159 @@ export default function App() {
             {adminTab === 'content_requests' && (
               <div className="flex flex-col gap-4 max-h-96 overflow-y-auto pr-1">
                 
-                {/* SECTION 1: MASTER LOCATIONS REQUESTS */}
+                {/* SECTION 1: MASTER LOCATIONS MANAGEMENT (ADD, EDIT, DELETE, APPROVE) */}
                 <div className="flex flex-col gap-3">
-                  <div className="bg-emerald-50 border-2 border-emerald-300 p-3 rounded-2xl flex items-center justify-between">
+                  <div className="bg-emerald-50 border-2 border-emerald-300 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
                     <div>
                       <h4 className="text-xs sm:text-sm font-black text-emerald-950 flex items-center gap-1.5">
-                        📍 नए गाँव व लोकेशन अनुरोध (Pending Locations)
+                        📍 लोकेशन मास्टर डेटाबेस प्रबंधन (Location Management)
                       </h4>
-                      <p className="text-[11px] text-emerald-800 font-semibold">
-                        व्यापारियों द्वारा रजिस्ट्रेशन के समय जोड़े गए नए गाँव व जिले
+                      <p className="text-[11px] text-emerald-800 font-semibold mt-0.5">
+                        गाँव, जिला व राज्य जोड़ें, एडिट करें या हटाएं (केवल एडमिन नियंत्रण)
                       </p>
                     </div>
-                    <span className="bg-emerald-600 text-white text-xs font-black px-2.5 py-1 rounded-xl">
-                      {masterLocations.filter((l) => l.status === 'pending_approval').length} लंबित
-                    </span>
+                    
+                    {isAdminLoggedIn && (
+                      <button
+                        type="button"
+                        onClick={handleOpenAddLocationModal}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-black rounded-xl shadow-sm border border-emerald-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4 stroke-[3]" />
+                        <span>➕ नई लोकेशन जोड़ें (Add Location)</span>
+                      </button>
+                    )}
                   </div>
 
-                  {masterLocations.filter((l) => l.status === 'pending_approval').length === 0 ? (
-                    <div className="p-4 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-xs text-slate-500 font-medium">
-                      कोई लंबित लोकेशन अनुरोध नहीं है।
+                  {/* PENDING APPROVAL LOCATIONS (IF ANY) */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-black text-slate-800 flex items-center gap-1">
+                        ⏳ लंबित लोकेशन अनुरोध (Pending Requests)
+                      </span>
+                      <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-0.5 rounded-md">
+                        {masterLocations.filter((l) => l.status === 'pending_approval').length} लंबित
+                      </span>
                     </div>
-                  ) : (
-                    masterLocations
-                      .filter((l) => l.status === 'pending_approval')
-                      .map((loc) => (
-                        <div
-                          key={loc.id}
-                          className="bg-white border-2 border-amber-300 p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-black text-xs text-slate-900">
-                                🏡 {loc.village}
-                              </span>
-                              <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                ⏳ Pending Review
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-600 font-medium mt-0.5">
-                              जिला: <b>{loc.district}</b> • राज्य: <b>{loc.state}</b>
-                            </p>
-                            {loc.requestedByPhone && (
-                              <p className="text-[11px] text-slate-500">
-                                📞 अनुरोधकर्ता मो: <a href={`tel:${loc.requestedByPhone}`} className="text-blue-700 underline font-bold">{loc.requestedByPhone}</a>
+
+                    {masterLocations.filter((l) => l.status === 'pending_approval').length === 0 ? (
+                      <div className="p-3 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-xs text-slate-500 font-medium">
+                        कोई लंबित लोकेशन अनुरोध नहीं है।
+                      </div>
+                    ) : (
+                      masterLocations
+                        .filter((l) => l.status === 'pending_approval')
+                        .map((loc) => (
+                          <div
+                            key={loc.id}
+                            className="bg-white border-2 border-amber-300 p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-xs text-slate-900">
+                                  🏡 {loc.village}
+                                </span>
+                                <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                                  ⏳ Pending Review
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 font-medium mt-0.5">
+                                जिला: <b>{loc.district}</b> • राज्य: <b>{loc.state}</b>
                               </p>
+                              {loc.requestedByPhone && (
+                                <p className="text-[11px] text-slate-500">
+                                  📞 अनुरोधकर्ता मो: <a href={`tel:${loc.requestedByPhone}`} className="text-blue-700 underline font-bold">{loc.requestedByPhone}</a>
+                                </p>
+                              )}
+                            </div>
+
+                            {isAdminLoggedIn && (
+                              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveMasterLocation(loc.id)}
+                                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 active:scale-95 transition-transform"
+                                  title="स्वीकृत करें"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>स्वीकृत</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditLocationModal(loc)}
+                                  className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl transition-all"
+                                  title="एडिट करें"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMasterLocation(loc.id)}
+                                  className="p-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl transition-all"
+                                  title="हटाएं"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             )}
                           </div>
+                        ))
+                    )}
+                  </div>
 
-                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                            <button
-                              type="button"
-                              onClick={() => handleApproveMasterLocation(loc.id)}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 active:scale-95 transition-transform"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>स्वीकृत (Approve)</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteMasterLocation(loc.id)}
-                              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 active:scale-95 transition-transform"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>हटाएं</span>
-                            </button>
+                  {/* ACTIVE / APPROVED MASTER LOCATIONS LIST WITH EDIT & DELETE CONTROLS */}
+                  <div className="flex flex-col gap-2 mt-1">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-xs font-black text-slate-800 flex items-center gap-1">
+                        ✅ स्वीकृत व सक्रिय लोकेशन सूची (Approved Master Locations)
+                      </span>
+                      <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-md">
+                        {masterLocations.filter((l) => l.status === 'approved').length} सक्रिय
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
+                      {masterLocations
+                        .filter((l) => l.status === 'approved')
+                        .map((loc) => (
+                          <div
+                            key={loc.id}
+                            className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between gap-2 hover:border-slate-300 transition-all"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <h5 className="text-xs font-black text-slate-900 truncate flex items-center gap-1">
+                                <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="truncate">{loc.village}</span>
+                              </h5>
+                              <p className="text-[10px] text-slate-500 truncate font-semibold">
+                                {loc.district} • {loc.state.split(' ')[0]}
+                              </p>
+                            </div>
+
+                            {isAdminLoggedIn && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditLocationModal(loc)}
+                                  className="p-1.5 bg-white hover:bg-blue-50 text-blue-700 border border-slate-200 hover:border-blue-300 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                  title="लोकेशन एडिट करें (Edit)"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMasterLocation(loc.id)}
+                                  className="p-1.5 bg-white hover:bg-red-50 text-red-600 border border-slate-200 hover:border-red-300 rounded-lg shadow-2xs transition-all active:scale-95 cursor-pointer"
+                                  title="लोकेशन हटाएं (Delete)"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))
-                  )}
+                        ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* SECTION 2: MASTER CATEGORIES REQUESTS */}
@@ -5370,11 +5697,141 @@ export default function App() {
               <span className="text-xs font-bold text-slate-500">मालिक सुरक्षा मोड सक्रिय</span>
               <button
                 onClick={handleAdminLogout}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1 cursor-pointer"
               >
                 <span>🚪 लॉग आउट (Logout)</span>
               </button>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ADMIN ONLY MODAL: ADD / EDIT MASTER LOCATION ==================== */}
+      {isAdminLoggedIn && isLocationModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-60 flex items-center justify-center p-3 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border-3 border-emerald-500 shadow-2xl my-auto flex flex-col gap-4">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-emerald-500 text-white rounded-2xl font-black text-lg shadow-sm">
+                  📍
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    {editingLocation ? 'लोकेशन एडिट करें (Edit Location)' : 'नई लोकेशन जोड़ें (Add Location)'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold">
+                    {editingLocation ? 'मास्टर डेटाबेस में लोकेशन अपडेट करें' : 'मास्टर डेटाबेस में नया राज्य/जिला/गाँव जोड़ें'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLocationModalOpen(false);
+                  setEditingLocation(null);
+                }}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSaveLocationModal} className="flex flex-col gap-3.5">
+              
+              {/* STATE INPUT / SELECT */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1">
+                  राज्य का नाम (State) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  list="admin-state-options"
+                  placeholder="राज्य चुनें या लिखें (उदा: Uttar Pradesh (उत्तर प्रदेश))..."
+                  value={locationFormState}
+                  onChange={(e) => {
+                    const newState = e.target.value;
+                    setLocationFormState(newState);
+                    const dists = getDistrictsForState(newState);
+                    if (dists && dists.length > 0 && !editingLocation) {
+                      setLocationFormDistrict(dists[0]);
+                    }
+                  }}
+                  required
+                  className="w-full p-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                />
+                <datalist id="admin-state-options">
+                  {ALL_INDIAN_STATES_AND_UTS.map((st) => (
+                    <option key={st} value={st} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* DISTRICT INPUT / SELECT */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1">
+                  जिले का नाम (District) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  list="admin-district-options"
+                  placeholder="जिले का नाम लिखें (उदा: Ghaziabad (गाजियाबाद))..."
+                  value={locationFormDistrict}
+                  onChange={(e) => setLocationFormDistrict(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                />
+                <datalist id="admin-district-options">
+                  {getDistrictsForState(locationFormState).map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+              </div>
+
+              {/* VILLAGE / TOWN INPUT */}
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1">
+                  गाँव या कस्बे का नाम (Village / Town) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="गाँव का नाम (उदा: Kalchina (कलछीना))..."
+                  value={locationFormVillage}
+                  onChange={(e) => setLocationFormVillage(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-emerald-50 border-2 border-emerald-400 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  💡 टिप: अंग्रेजी और हिंदी दोनों नाम लिखें (उदा: Rampur (रामपुर))
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLocationModalOpen(false);
+                    setEditingLocation(null);
+                  }}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl transition-colors cursor-pointer"
+                >
+                  रद्द करें (Cancel)
+                </button>
+
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md border border-emerald-700 flex items-center justify-center gap-1.5 active:scale-95 transition-transform cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{editingLocation ? 'अपडेट करें (Save)' : 'जोड़ें (Add Location)'}</span>
+                </button>
+              </div>
+
+            </form>
 
           </div>
         </div>
@@ -5963,176 +6420,402 @@ export default function App() {
 
 
       {/* ==================== MERCHANT DASHBOARD MODAL ==================== */}
-      {isMerchantDashboardOpen && loggedInWorker && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl border-2 border-emerald-300 flex flex-col gap-5 relative animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <img
-                  src={loggedInWorker.avatarUrl}
-                  alt={loggedInWorker.name}
-                  className="w-12 h-12 rounded-2xl object-cover border-2 border-emerald-400 shrink-0 shadow-2xs bg-white"
-                />
-                <div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-base sm:text-lg font-black text-slate-900">
-                      {loggedInWorker.shopName || loggedInWorker.name}
-                    </h3>
-                    {loggedInWorker.isVerified ? (
-                      <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-0.5">
-                        <ShieldCheck className="w-3 h-3 text-blue-600" /> Aadhaar Verified
-                      </span>
-                    ) : (
-                      <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
-                        ⏳ सत्यापन लंबित
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-600 font-bold">
-                    मालिक: {loggedInWorker.name} • {loggedInWorker.phone}
-                  </p>
-                </div>
-              </div>
+      {isMerchantDashboardOpen && loggedInWorker && (() => {
+        const professionBadge = getProfessionBadge(loggedInWorker.category, loggedInWorker.customCategory);
+        const bioPresets = [
+          "10+ वर्षों का विश्वसनीय अनुभव",
+          "24x7 इमरजेंसी सेवा उपलब्ध",
+          "100% ओरिजिनल सामान गारंटी",
+          "निःशुल्क होम डिलीवरी / विजिट",
+          "उचित रेट व पक्का बिल",
+          "अनुभवी व प्रशिक्षित कारीगर"
+        ];
 
-              <button
-                type="button"
-                onClick={() => setIsMerchantDashboardOpen(false)}
-                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Profile Overview Card */}
-            <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-2xl flex flex-col gap-2">
-              <div className="flex items-center justify-between text-xs text-emerald-950 font-black">
-                <span>📍 स्थान: {loggedInWorker.village}, {loggedInWorker.district}</span>
-                <span>⭐ {loggedInWorker.rating} ({loggedInWorker.reviewsCount || 0} रिव्यू)</span>
-              </div>
-              <div className="text-xs text-emerald-900 font-semibold">
-                श्रेणी: <span className="font-bold">{loggedInWorker.category}</span> {loggedInWorker.customCategory ? `(${loggedInWorker.customCategory})` : ''}
-              </div>
-            </div>
-
-            {/* DIGITAL VISITING CARD GENERATOR BANNER */}
-            <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white p-4 rounded-3xl border-2 border-amber-400 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <QrCode className="w-4 h-4 text-amber-300 shrink-0" />
-                  <h4 className="text-xs sm:text-sm font-black text-amber-300">
-                    📇 आपका डिजिटल विजिटिंग कार्ड (Visiting Card)
-                  </h4>
-                </div>
-                <p className="text-xs text-slate-200 mt-1">
-                  5 प्रीमियम डिजाइन टेम्पलेट्स में से चुनें, क्यूआर कोड के साथ डाउनलोड करें व व्हाट्सएप पर शेयर करें।
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsMerchantCardOpen(true)}
-                className="px-4 py-2.5 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black text-xs rounded-2xl shadow-sm border border-amber-500 shrink-0 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <QrCode className="w-4 h-4 text-slate-950 shrink-0" />
-                <span>कार्ड देखें व शेयर करें</span>
-              </button>
-            </div>
-
-            {/* Self-Service Password Change Section */}
-            <div className="bg-slate-50 border-2 border-slate-200 p-4 rounded-3xl flex flex-col gap-3">
-              <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                <Key className="w-4 h-4 text-emerald-700" />
-                <h4 className="text-xs sm:text-sm font-black text-slate-900">
-                  🔑 पासवर्ड बदलें (Change Password)
-                </h4>
-              </div>
-
-              {passwordChangeMsg && (
-                <div className={`p-2.5 rounded-xl text-xs font-bold border ${
-                  passwordChangeMsg.includes('🎉')
-                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                    : 'bg-red-50 text-red-800 border-red-300'
-                }`}>
-                  {passwordChangeMsg}
+        return (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl border-2 border-emerald-400 flex flex-col gap-5 relative animate-in fade-in zoom-in duration-200 max-h-[92vh] overflow-y-auto">
+              
+              {/* Toast Notification Banner */}
+              {ownerBioSavedToast && (
+                <div className="sticky top-0 z-40 bg-emerald-900 text-amber-300 px-4 py-2.5 rounded-2xl shadow-xl border border-emerald-700 flex items-center justify-between gap-2 text-xs font-black animate-in fade-in slide-in-from-top-2">
+                  <span>{ownerBioSavedToast}</span>
+                  <button
+                    type="button"
+                    onClick={() => setOwnerBioSavedToast(null)}
+                    className="p-1 hover:bg-emerald-800 rounded-full"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
 
-              <form onSubmit={handleMerchantPasswordChange} className="flex flex-col gap-3">
-                <div>
-                  <label className="block text-[11px] font-black text-slate-700 mb-1">
-                    वर्तमान/पुराना पासवर्ड (Current Password) *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="वर्तमान पासवर्ड दर्ज करें"
-                    value={changeCurrentPassword}
-                    onChange={(e) => setChangeCurrentPassword(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-black text-slate-700 mb-1">
-                      नया पासवर्ड (New Password) *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="कम से कम 4 अक्षर"
-                      value={changeNewPassword}
-                      onChange={(e) => setChangeNewPassword(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+              {/* Modal Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-3 gap-3">
+                <div className="flex items-start gap-3">
+                  {/* Avatar with Camera Overlay Trigger */}
+                  <div className="relative group shrink-0">
+                    <img
+                      src={loggedInWorker.avatarUrl}
+                      alt={loggedInWorker.name}
+                      className="w-16 h-16 rounded-2xl object-cover border-2 border-emerald-500 shadow-md bg-slate-100"
                     />
+                    <button
+                      type="button"
+                      onClick={() => ownerPhotoInputRef.current?.click()}
+                      disabled={isCompressingOwnerPhoto}
+                      className="absolute -bottom-1 -right-1 p-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl shadow-md border-2 border-white transition-all cursor-pointer"
+                      title="फोटो बदलें (Change Photo)"
+                    >
+                      {isCompressingOwnerPhoto ? (
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Camera className="w-3.5 h-3.5" />
+                      )}
+                    </button>
                   </div>
 
+                  {/* Hidden Input for Instant Client-Side Photo Upload */}
+                  <input
+                    ref={ownerPhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleOwnerPhotoUpload}
+                  />
+
                   <div>
-                    <label className="block text-[11px] font-black text-slate-700 mb-1">
-                      पासवर्ड की पुष्टि (Confirm) *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="पुनः नया पासवर्ड दर्ज करें"
-                      value={changeConfirmPassword}
-                      onChange={(e) => setChangeConfirmPassword(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-                    />
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                        {loggedInWorker.shopName || loggedInWorker.name}
+                      </h3>
+                      {loggedInWorker.isVerified ? (
+                        <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-0.5">
+                          <ShieldCheck className="w-3 h-3 text-blue-600" /> Aadhaar Verified
+                        </span>
+                      ) : (
+                        <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                          ⏳ सत्यापन लंबित
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-600 font-bold mt-0.5">
+                      मालिक: {loggedInWorker.name} • {loggedInWorker.phone}
+                    </p>
+
+                    {/* Dynamic Profession Badge */}
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                      <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1 shadow-2xs ${professionBadge.badgeClass}`}>
+                        <span>{professionBadge.iconEmoji}</span>
+                        <span>{professionBadge.hindiTitle}</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-semibold">
+                        {professionBadge.tagline}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 <button
-                  type="submit"
-                  className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-sm border border-emerald-800 active:scale-98 transition-transform mt-1"
+                  type="button"
+                  onClick={() => setIsMerchantDashboardOpen(false)}
+                  className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full shrink-0 transition-colors"
                 >
-                  💾 नया पासवर्ड सेव करें (Update Password)
+                  <X className="w-5 h-5" />
                 </button>
-              </form>
+              </div>
+
+              {/* 1. LIVE SHOP PROFILE VIEWS COUNTER & ENGAGEMENT CARD */}
+              <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-teal-950 text-white p-4 rounded-3xl border-2 border-emerald-400/80 shadow-lg relative overflow-hidden flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-500/20 border border-emerald-400/40 rounded-xl text-amber-300">
+                      <Eye className="w-5 h-5 text-amber-300" />
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-300 flex items-center gap-1">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> लाइव प्रोफाइल एनालिटिक्स
+                      </span>
+                      <h4 className="text-sm sm:text-base font-black text-white">
+                        👁️ आपकी दुकान को <span className="text-amber-300 font-black text-lg underline decoration-amber-400">{loggedInWorker.viewsCount || 148}</span> लोगों ने देखा
+                      </h4>
+                    </div>
+                  </div>
+
+                  <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 font-black text-[10px] px-2.5 py-1 rounded-full whitespace-nowrap hidden sm:inline-flex">
+                    🔥 लोकप्रिय प्रोफाइल
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-800/60 text-xs">
+                  <div className="bg-white/5 p-2 rounded-xl border border-white/10 flex items-center justify-between">
+                    <span className="text-slate-300 text-[11px]">ग्राहक रेटिंग:</span>
+                    <span className="font-black text-amber-300">⭐ {loggedInWorker.rating} ({loggedInWorker.reviewsCount || 0})</span>
+                  </div>
+                  <div className="bg-white/5 p-2 rounded-xl border border-white/10 flex items-center justify-between">
+                    <span className="text-slate-300 text-[11px]">काम का अनुभव:</span>
+                    <span className="font-black text-emerald-300">{loggedInWorker.experienceYears} वर्ष</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-300 leading-relaxed bg-emerald-950/60 p-2.5 rounded-xl border border-emerald-700/50">
+                  💡 <span className="font-bold text-amber-200">सुझाव:</span> अपना डिजिटल विजिटिंग कार्ड व्हाट्सएप ग्रुप्स और ग्रामवासियों को शेयर करें ताकि और नए ग्राहक आपसे सीधे संपर्क कर सकें।
+                </p>
+              </div>
+
+              {/* 2. PHOTO UPLOAD & CANVAS COMPRESSION SECTION */}
+              <div className="bg-slate-50 border-2 border-slate-200 p-4 rounded-3xl flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-emerald-700" />
+                    <h4 className="text-xs sm:text-sm font-black text-slate-900">
+                      📸 प्रोफाइल व दुकान की फोटो (Photo Upload)
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                    ⚡ ऑटो कंप्रेसर सक्रिय
+                  </span>
+                </div>
+
+                {compressionStats && (
+                  <div className="p-2.5 bg-emerald-50 text-emerald-900 border border-emerald-300 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in">
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{compressionStats.originalKb} KB → <span className="font-black text-emerald-800">{compressionStats.compressedKb} KB</span> ({compressionStats.percentSaved}% डेटा बचत)</span>
+                    </span>
+                    <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-md font-extrabold">
+                      क्रिस्प क्वालिटी HD
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => ownerPhotoInputRef.current?.click()}
+                    disabled={isCompressingOwnerPhoto}
+                    className="w-full sm:w-auto flex-1 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 active:scale-98 text-white font-black text-xs rounded-2xl shadow-sm border border-emerald-800 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                  >
+                    {isCompressingOwnerPhoto ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                        <span>फोटो कंप्रेस व अपलोड हो रही है...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 text-amber-300" />
+                        <span>गैलरी / कैमरा से नई फोटो चुनें</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  * 5-10MB तक की बड़ी फोटो स्वतः क्रिस्प 200-300KB में कंप्रेस होकर तुरंत सेव हो जाती है।
+                </p>
+              </div>
+
+              {/* 3. RICH BIO / ABOUT US & SERVICES SECTION */}
+              <div className="bg-slate-50 border-2 border-slate-200 p-4 rounded-3xl flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-emerald-700" />
+                    <h4 className="text-xs sm:text-sm font-black text-slate-900">
+                      📖 हमारे बारे में व सेवाएं (Detailed Bio & Services)
+                    </h4>
+                  </div>
+                </div>
+
+                {/* Quick Add Chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {bioPresets.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        const newBio = ownerBioInput.trim()
+                          ? `${ownerBioInput.trim()}\n• ${preset}`
+                          : `• ${preset}`;
+                        setOwnerBioInput(newBio);
+                      }}
+                      className="text-[10px] font-bold bg-white hover:bg-emerald-50 hover:border-emerald-400 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <Plus className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>{preset}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <textarea
+                  rows={3}
+                  placeholder="दुकान के बारे में विस्तार से लिखें, जैसे: कौन-कौन से काम किए जाते हैं, समय क्या है, क्या विशेष सुविधाएं हैं..."
+                  value={ownerBioInput}
+                  onChange={(e) => setOwnerBioInput(e.target.value)}
+                  className="w-full p-3 bg-white border border-slate-300 rounded-2xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none leading-relaxed"
+                />
+
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    {ownerBioInput.length} अक्षर
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveOwnerBio()}
+                    className="py-2 px-4 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-xs border border-emerald-800 active:scale-98 transition-transform flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-300" />
+                    <span>विवरण सेव करें (Save Bio)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. DIGITAL VISITING CARD GENERATOR BANNER */}
+              <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white p-4 rounded-3xl border-2 border-amber-400 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <QrCode className="w-4 h-4 text-amber-300 shrink-0" />
+                    <h4 className="text-xs sm:text-sm font-black text-amber-300">
+                      📇 आपका डिजिटल विजिटिंग कार्ड (Visiting Card)
+                    </h4>
+                  </div>
+                  <p className="text-xs text-slate-200 mt-1">
+                    5 प्रीमियम डिजाइन टेम्पलेट्स में से चुनें, क्यूआर कोड के साथ डाउनलोड करें व व्हाट्सएप पर शेयर करें।
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMerchantCardOpen(true)}
+                  className="px-4 py-2.5 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black text-xs rounded-2xl shadow-sm border border-amber-500 shrink-0 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <QrCode className="w-4 h-4 text-slate-950 shrink-0" />
+                  <span>कार्ड देखें व शेयर करें</span>
+                </button>
+              </div>
+
+              {/* 5. COLLAPSIBLE SELF-SERVICE PASSWORD CHANGE SECTION */}
+              <div className="bg-slate-50 border-2 border-slate-200 p-4 rounded-3xl flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordSectionOpen(!isPasswordSectionOpen)}
+                  className="flex items-center justify-between w-full text-left font-black text-xs sm:text-sm text-slate-900 hover:text-emerald-800 transition-colors cursor-pointer py-1"
+                >
+                  <div className="flex items-center gap-2">
+                    <Key className="w-4 h-4 text-emerald-700" />
+                    <span>🔑 पासवर्ड बदलें (Change Password)</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {isPasswordSectionOpen ? 'छुपाएं' : 'खोलें'}
+                    </span>
+                    <motion.div
+                      animate={{ rotate: isPasswordSectionOpen ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ChevronDown className="w-4 h-4 text-slate-600" />
+                    </motion.div>
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {isPasswordSectionOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="overflow-hidden flex flex-col gap-3 pt-2 border-t border-slate-200"
+                    >
+                      {passwordChangeMsg && (
+                        <div className={`p-2.5 rounded-xl text-xs font-bold border ${
+                          passwordChangeMsg.includes('🎉')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : 'bg-red-50 text-red-800 border-red-300'
+                        }`}>
+                          {passwordChangeMsg}
+                        </div>
+                      )}
+
+                      <form onSubmit={handleMerchantPasswordChange} className="flex flex-col gap-3">
+                        <div>
+                          <label className="block text-[11px] font-black text-slate-700 mb-1">
+                            वर्तमान/पुराना पासवर्ड (Current Password) *
+                          </label>
+                          <input
+                            type="password"
+                            required
+                            placeholder="वर्तमान पासवर्ड दर्ज करें"
+                            value={changeCurrentPassword}
+                            onChange={(e) => setChangeCurrentPassword(e.target.value)}
+                            className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-[11px] font-black text-slate-700 mb-1">
+                              नया पासवर्ड (New Password) *
+                            </label>
+                            <input
+                              type="password"
+                              required
+                              placeholder="कम से कम 4 अक्षर"
+                              value={changeNewPassword}
+                              onChange={(e) => setChangeNewPassword(e.target.value)}
+                              className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-black text-slate-700 mb-1">
+                              पासवर्ड की पुष्टि (Confirm) *
+                            </label>
+                            <input
+                              type="password"
+                              required
+                              placeholder="पुनः नया पासवर्ड दर्ज करें"
+                              value={changeConfirmPassword}
+                              onChange={(e) => setChangeConfirmPassword(e.target.value)}
+                              className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-sm border border-emerald-800 active:scale-98 transition-transform mt-1 cursor-pointer"
+                        >
+                          💾 नया पासवर्ड सेव करें (Update Password)
+                        </button>
+                      </form>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleMerchantLogout}
+                  className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 font-black text-xs rounded-xl border border-red-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <XCircle className="w-4 h-4 text-red-600" />
+                  <span>लॉग आउट (Logout)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMerchantDashboardOpen(false)}
+                  className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black text-xs rounded-xl cursor-pointer transition-colors"
+                >
+                  बंद करें
+                </button>
+              </div>
+
             </div>
-
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={handleMerchantLogout}
-                className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-800 font-black text-xs rounded-xl border border-red-300 flex items-center gap-1.5"
-              >
-                <XCircle className="w-4 h-4 text-red-600" />
-                <span>लॉग आउट (Logout)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsMerchantDashboardOpen(false)}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-black text-xs rounded-xl"
-              >
-                बंद करें
-              </button>
-            </div>
-
           </div>
-        </div>
-      )}
+        );
+      })()}
 
 
       {/* ==================== ADMIN RESET PASSWORD DIALOG MODAL ==================== */}
@@ -6492,6 +7175,8 @@ function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateW
   const whatsappMsg = `नमस्ते ${worker.hindiName}, मुझे गाँव में काम करवाना है। क्या आप उपलब्ध हैं?`;
   const whatsappUrl = `https://wa.me/${worker.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(whatsappMsg)}`;
 
+  const professionBadge = getProfessionBadge(worker.category, worker.customCategory);
+
   // Interactive rating state & Share state
   const [isRatingOpen, setIsRatingOpen] = useState<boolean>(false);
   const [isCardModalOpen, setIsCardModalOpen] = useState<boolean>(false);
@@ -6499,6 +7184,7 @@ function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateW
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [submittedMessage, setSubmittedMessage] = useState<boolean>(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [isBioExpanded, setIsBioExpanded] = useState<boolean>(false);
 
   const availableTags = ["अच्छा काम", "सही रेट", "समय पर आए", "व्यवहार अच्छा", "अनुभवी मिस्त्री", "ईमानदार"];
 
@@ -6578,7 +7264,11 @@ function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateW
   };
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ layout: { type: 'spring', stiffness: 350, damping: 30 }, duration: 0.25 }}
       id={`worker-${worker.id}`}
       className={`p-4 sm:p-4.5 rounded-3xl border-2 transition-all shadow-sm flex flex-col gap-3 relative overflow-hidden bg-white ${
         worker.isExactVillage ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-slate-200 hover:border-slate-300'
@@ -6716,6 +7406,17 @@ function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateW
             <span>{worker.village}, {worker.district}</span>
           </p>
 
+          {/* Profession Badge & Profile Views Counter */}
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+            <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1 shadow-2xs ${professionBadge.badgeClass}`}>
+              <span>{professionBadge.iconEmoji}</span>
+              <span>{professionBadge.hindiTitle}</span>
+            </span>
+            <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200 flex items-center gap-1">
+              <Eye className="w-3 h-3 text-slate-500" /> {worker.viewsCount || 148} व्यूज
+            </span>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="bg-emerald-50 text-emerald-900 font-black text-xs px-2.5 py-1 rounded-xl border border-emerald-200">
               {worker.charges}
@@ -6729,6 +7430,31 @@ function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateW
               ({worker.jobsDone}+ काम पूरे किए)
             </span>
           </div>
+
+          {/* Rich Bio Section (Detailed Services & About Us) */}
+          {worker.bio && (
+            <div className="mt-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-slate-800 flex items-center gap-1">
+                  <FileText className="w-3 h-3 text-emerald-700" /> हमारे बारे में व सेवाएं
+                </span>
+                {worker.bio.length > 80 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsBioExpanded(!isBioExpanded)}
+                    className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 cursor-pointer"
+                  >
+                    {isBioExpanded ? 'कम देखें ▲' : 'विस्तार से पढ़ें ▼'}
+                  </button>
+                )}
+              </div>
+              <p className={`text-[11px] text-slate-700 font-medium leading-relaxed mt-1 whitespace-pre-line ${
+                !isBioExpanded && worker.bio.length > 80 ? 'line-clamp-2' : ''
+              }`}>
+                {worker.bio}
+              </p>
+            </div>
+          )}
 
           {/* Skill Tags */}
           <div className="flex flex-wrap gap-1 mt-2.5">
@@ -6929,6 +7655,6 @@ function WorkerCard({ worker, isFavorite, onToggleFavorite, onVoiceRead, onRateW
         />
       )}
 
-    </div>
+    </motion.div>
   );
 }

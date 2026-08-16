@@ -24,6 +24,8 @@ export interface WorkerService {
   lat?: number;
   lng?: number;
   reviewsCount?: number;
+  viewsCount?: number;
+  bio?: string;
   userTags?: string[];
   submittedAt?: number;
   password?: string;
