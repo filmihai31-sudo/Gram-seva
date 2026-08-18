@@ -105,8 +105,14 @@ import {
 import { MapPicker, SingleShopMapView, MultiShopMapView, ShopPinItem } from './components/LeafletMap';
 import { VisitingCardModal } from './components/VisitingCardModal';
 import { InstallButton, InstallBanner } from './components/InstallButton';
+import { AddBusinessModal } from './components/AddBusinessModal';
+import { ConversationalAiSearch } from './components/ConversationalAiSearch';
+import { VideoAdTvBanner } from './components/VideoAdTvBanner';
+import { ClientVideoAdGenerator } from './components/ClientVideoAdGenerator';
+import { VideoAdItem } from './types';
 import { compressImageFile } from './utils/imageCompression';
 import { getProfessionBadge } from './utils/professionBadges';
+import { sortWorkersBySmartPriority } from './utils/sortingAlgorithm';
 import {
   fetchWorkersFromFirestore,
   saveWorkerToFirestore,
@@ -1507,6 +1513,30 @@ export default function App() {
   const [adminBannerFilter, setAdminBannerFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [copiedUpi, setCopiedUpi] = useState<boolean>(false);
 
+  // --- FEATURE: 100% Client-Side Video Ad Generator States ---
+  const [isVideoAdGeneratorOpen, setIsVideoAdGeneratorOpen] = useState<boolean>(false);
+  const [customVideoAds, setCustomVideoAds] = useState<VideoAdItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('gramseva_custom_video_ads');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse saved custom video ads', e);
+    }
+    return [];
+  });
+
+  const handleCustomAdCreated = (newAd: VideoAdItem) => {
+    setCustomVideoAds((prev) => {
+      const updated = [newAd, ...prev];
+      try {
+        localStorage.setItem('gramseva_custom_video_ads', JSON.stringify(updated.slice(0, 10)));
+      } catch (e) {
+        console.warn('Failed to save custom video ad to local storage', e);
+      }
+      return updated;
+    });
+  };
+
   // --- FEATURE: Crowd-Sourced Dynamic Locations & Categories State ---
   const [masterLocations, setMasterLocations] = useState<MasterLocation[]>(() => {
     try {
@@ -1624,6 +1654,12 @@ export default function App() {
   // Admin Password Reset Modal State
   const [adminResetWorkerId, setAdminResetWorkerId] = useState<string | null>(null);
   const [adminTempPasswordInput, setAdminTempPasswordInput] = useState<string>('123456');
+
+  // --- FEATURE: Self-Service Business Registration Modal & AI Voice Search Modals ---
+  const [isAddBusinessModalOpen, setIsAddBusinessModalOpen] = useState<boolean>(false);
+  const [addBusinessInitialDistrict, setAddBusinessInitialDistrict] = useState<string>('');
+  const [addBusinessInitialCategory, setAddBusinessInitialCategory] = useState<string>('');
+  const [activeVisitingCardWorker, setActiveVisitingCardWorker] = useState<WorkerService | null>(null);
 
   // --- FEATURE: Interactive Leaflet Map Modal States & GPS Location ---
   const [isMapPickerOpen, setIsMapPickerOpen] = useState<boolean>(false);
@@ -2933,21 +2969,27 @@ export default function App() {
       };
     });
 
-    if (resultsSortBy === 'rating') {
-      // Sort by Highest rating first (e.g. 5.0 -> 4.9 -> 4.8), tie-break with closest distance
-      mapped.sort((a, b) => {
+    // Smart Priority: Paid / Sponsored listings get top priority, then sorted by rating / distance
+    mapped.sort((a, b) => {
+      // 1. Paid Priority (Tier 1)
+      const aPaid = Boolean(a.isPaid || a.planType === 'pro' || a.planType === 'vip');
+      const bPaid = Boolean(b.isPaid || b.planType === 'pro' || b.planType === 'vip');
+      if (aPaid && !bPaid) return -1;
+      if (!aPaid && bPaid) return 1;
+
+      // 2. Proximity or Rating sort
+      if (resultsSortBy === 'rating') {
+        // Sort by Highest rating first (e.g. 5.0 -> 4.9 -> 4.8), tie-break with closest distance
         if (b.rating !== a.rating) return b.rating - a.rating;
         if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
         return (b.jobsDone || 0) - (a.jobsDone || 0);
-      });
-    } else {
-      // Sort by Closest distance first (0 km -> 2.0 km -> 4.5 km), tie-break with highest rating
-      mapped.sort((a, b) => {
+      } else {
+        // Sort by Closest distance first (0 km -> 2.0 km -> 4.5 km), tie-break with highest rating
         if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
         if (b.rating !== a.rating) return b.rating - a.rating;
         return (b.jobsDone || 0) - (a.jobsDone || 0);
-      });
-    }
+      }
+    });
 
     return mapped;
   }, [workers, selectedCategory, categoryGroupFilter, favorites, activeVillageDisplay, resultsSortBy, userGpsLat, userGpsLng]);
@@ -3285,14 +3327,29 @@ export default function App() {
               </button>
             )}
 
+            {/* Self-Service Business Registration Button */}
+            <button
+              onClick={() => {
+                setAddBusinessInitialDistrict(selectedDistrict || '');
+                setAddBusinessInitialCategory(selectedCategory || '');
+                setIsAddBusinessModalOpen(true);
+              }}
+              className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl font-black text-xs shadow-md border border-amber-300 flex items-center gap-1 active:scale-95 transition-all shrink-0 whitespace-nowrap"
+              title="अपनी दुकान या बिज़नेस का निशुल्क रजिस्ट्रेशन करें"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-slate-950 fill-amber-300" />
+              <span className="hidden sm:inline">📝 दुकान रजिस्टर करें</span>
+              <span className="sm:hidden">📝 रजिस्टर</span>
+            </button>
+
             {/* Add Worker Button */}
             <button
               onClick={() => setIsAddWorkerOpen(true)}
-              className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl font-black text-xs shadow-md border border-amber-200 flex items-center gap-1 active:scale-95 transition-all shrink-0 whitespace-nowrap"
+              className="bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl font-black text-xs shadow-md border border-emerald-500 flex items-center gap-1 active:scale-95 transition-all shrink-0 whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span className="hidden sm:inline">+ अपना काम / दुकान जोड़ें</span>
-              <span className="sm:hidden">➕ जोड़ें</span>
+              <span className="hidden sm:inline">+ कारीगर जोड़ें</span>
+              <span className="sm:hidden">➕ कारीगर</span>
             </button>
           </div>
 
@@ -3304,87 +3361,39 @@ export default function App() {
 
       <main className="w-full max-w-3xl px-3 sm:px-4 mt-1 flex-1 flex flex-col gap-4">
 
-        {/* ==================== 1. TOP PAID & ADMOB BANNER SPACE ==================== */}
-        <div className="w-full bg-gradient-to-r from-amber-100 via-amber-50 to-orange-100 border-2 border-dashed border-amber-400 rounded-3xl p-3 sm:p-4 text-center shadow-xs relative overflow-hidden flex flex-col gap-2">
-          
-          <div className="flex items-center justify-between text-[10px] sm:text-xs text-amber-950 font-extrabold uppercase tracking-wide">
-            <span className="bg-amber-400 text-amber-950 px-2.5 py-0.5 rounded-full text-[10px] font-black border border-amber-300 shadow-2xs flex items-center gap-1">
-              <Megaphone className="w-3 h-3 text-slate-950" />
-              {activeApprovedAds.length > 0 ? '🔴 स्पॉन्सर्ड विज्ञापन (Paid Banner)' : '📢 लोकल विज्ञापन स्लॉट (Advertise Here)'}
-            </span>
+        {/* ==================== INTELLIGENT CONVERSATIONAL AI VOICE & TEXT SEARCH ENGINE ==================== */}
+        <ConversationalAiSearch
+          workers={workers}
+          onSelectWorker={(w) => {
+            if (w.category) setSelectedCategory(w.category);
+            if (w.district) setSelectedDistrict(w.district);
+            if (w.village) setSelectedVillage(w.village);
+            setCurrentStep(2);
+            setTimeout(() => {
+              const el = document.getElementById(`worker-${w.id}`);
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 300);
+          }}
+          onOpenAddBusiness={(district, category) => {
+            setAddBusinessInitialDistrict(district || selectedDistrict || '');
+            setAddBusinessInitialCategory(category || selectedCategory || '');
+            setIsAddBusinessModalOpen(true);
+          }}
+          onOpenVisitingCard={(w) => {
+            setActiveVisitingCardWorker(w);
+          }}
+        />
 
-            <button
-              onClick={() => setIsAdvertiseModalOpen(true)}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-black text-[11px] sm:text-xs px-3 py-1 rounded-xl shadow-sm border border-emerald-800 flex items-center gap-1 active:scale-95 transition-all"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>अपना विज्ञापन चलाएं (₹99/दिन से)</span>
-            </button>
-          </div>
-
-          {activeApprovedAds.length > 0 ? (
-            // LIVE APPROVED PAID BANNER DISPLAY
-            <div className="py-2.5 px-3.5 bg-white/95 backdrop-blur-xs rounded-2xl border-2 border-emerald-400 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <img
-                  src={activeApprovedAds[0].imageUrl}
-                  alt={activeApprovedAds[0].businessName}
-                  className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-300 shrink-0 bg-slate-100 shadow-2xs"
-                />
-                <div className="overflow-hidden">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-xs sm:text-sm font-black text-slate-900 truncate">
-                      {activeApprovedAds[0].businessName}
-                    </h3>
-                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-emerald-200">
-                      लाइव विज्ञापन
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 font-semibold flex items-center gap-1 mt-0.5">
-                    <Clock className="w-3 h-3 text-amber-600 shrink-0" />
-                    <span>वैधता: {formatRemainingTime(activeApprovedAds[0].expiryTime)}</span>
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-medium truncate">
-                    मो: {activeApprovedAds[0].mobile} • {activeApprovedAds[0].durationDays} दिन का प्लान (₹{activeApprovedAds[0].price})
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <a
-                  href={`tel:${activeApprovedAds[0].mobile}`}
-                  className="w-full sm:w-auto px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-black text-xs rounded-xl shadow-xs text-center flex items-center justify-center gap-1.5 whitespace-nowrap active:scale-95 transition-transform"
-                >
-                  <Phone className="w-3.5 h-3.5 fill-current" />
-                  <span>डायरेक्ट कॉल करें</span>
-                </a>
-              </div>
-            </div>
-          ) : (
-            // DEFAULT PROMOTIONAL BANNER
-            <div className="py-2.5 px-3.5 bg-white/90 backdrop-blur-xs rounded-2xl border border-amber-300 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-2.5 text-left">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl p-2 bg-amber-100 rounded-2xl shrink-0">🏪</span>
-                <div>
-                  <p className="text-xs sm:text-sm font-black text-slate-900">
-                    किसान खाद, बीज व ट्रैक्टर वर्कशॉप — आपके ब्लॉक में
-                  </p>
-                  <p className="text-[11px] text-slate-600 font-medium">
-                    यहाँ अपनी दुकान या बिज़नेस का विज्ञापन चलाएं और हजारों ग्रामीणों तक पहुँचें!
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsAdvertiseModalOpen(true)}
-                className="w-full sm:w-auto px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-xs text-center flex items-center justify-center gap-1 shrink-0 border border-amber-500 active:scale-95 transition-transform"
-              >
-                <span>अभी विज्ञापन बनाएं</span>
-              </button>
-            </div>
-          )}
-
-        </div>
+        {/* ==================== 1. INTERACTIVE DIGITAL LED TV VIDEO AD BANNER ==================== */}
+        <VideoAdTvBanner
+          activeApprovedAds={activeApprovedAds}
+          customVideoAds={customVideoAds}
+          onOpenAdvertiseModal={() => setIsAdvertiseModalOpen(true)}
+          onOpenVideoAdGenerator={() => setIsVideoAdGeneratorOpen(true)}
+          formatRemainingTime={formatRemainingTime}
+        />
 
 
         {/* ==================== WIZARD STEP NAVIGATION PROGRESS BAR ==================== */}
@@ -6129,6 +6138,33 @@ export default function App() {
                 </div>
               </div>
 
+              {/* AI Video Ad Generator Shortcut inside Advertise Modal */}
+              <div className="p-3 bg-gradient-to-r from-amber-100 via-amber-50 to-orange-100 border-2 border-amber-400 rounded-2xl flex items-center justify-between gap-2 shadow-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎬</span>
+                  <div>
+                    <span className="text-xs font-black text-slate-950 block">
+                      मुफ़्त वीडियो विज्ञापन बनाना चाहते हैं?
+                    </span>
+                    <span className="text-[10px] text-amber-900 font-bold">
+                      100% फ्री क्लाइंट-साइड मोशन वीडियो जनरेटर (Zero Cost)
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAdvertiseModalOpen(false);
+                    setIsVideoAdGeneratorOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl text-xs font-black shrink-0 border border-amber-500 shadow-sm flex items-center gap-1 active:scale-95 transition-transform"
+                >
+                  <Sparkles className="w-3.5 h-3.5 fill-amber-300" />
+                  <span>वीडियो बनाएं</span>
+                </button>
+              </div>
+
               {/* Submit Buttons */}
               <div className="pt-2 flex gap-2">
                 <button
@@ -6152,6 +6188,14 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ==================== CLIENT-SIDE ZERO-COST VIDEO AD GENERATOR MODAL ==================== */}
+      <ClientVideoAdGenerator
+        isOpen={isVideoAdGeneratorOpen}
+        onClose={() => setIsVideoAdGeneratorOpen(false)}
+        onAdCreated={handleCustomAdCreated}
+        initialLocation={activeVillageDisplay}
+      />
 
 
       {/* ==================== MERCHANT LOGIN MODAL ==================== */}
@@ -7234,6 +7278,32 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ==================== SELF-SERVICE BUSINESS REGISTRATION MODAL ==================== */}
+      <AddBusinessModal
+        isOpen={isAddBusinessModalOpen}
+        onClose={() => setIsAddBusinessModalOpen(false)}
+        initialDistrict={addBusinessInitialDistrict || selectedDistrict}
+        initialVillage={selectedVillage}
+        initialCategory={addBusinessInitialCategory || selectedCategory || ''}
+        onBusinessAdded={(newWorker) => {
+          setWorkers((prev) => [newWorker, ...prev]);
+          if (useCloudDb) {
+            saveWorkerToFirestore(newWorker).catch((err) => {
+              console.warn('Could not auto-save new worker to cloud Firestore:', err);
+            });
+          }
+        }}
+      />
+
+      {/* ==================== DYNAMIC VISITING CARD MODAL ==================== */}
+      {activeVisitingCardWorker && (
+        <VisitingCardModal
+          worker={activeVisitingCardWorker}
+          isOpen={!!activeVisitingCardWorker}
+          onClose={() => setActiveVisitingCardWorker(null)}
+        />
       )}
 
     </div>
